@@ -1,7 +1,7 @@
 // Document Canvas - Markdown editor with syntax highlighting
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Text, useInput, useApp, useStdout } from "ink";
+import { Box, Text, useInput, useApp, useStdout, useStdin } from "ink";
 import { useIPCServer } from "./calendar/hooks/use-ipc-server";
 import { useMouse } from "./calendar/hooks/use-mouse";
 import { RawMarkdownRenderer } from "./document/components/raw-markdown-renderer";
@@ -18,6 +18,7 @@ interface Props {
 export function Document({ id, config: initialConfig, socketPath, scenario = "display" }: Props) {
   const { exit } = useApp();
   const { stdout } = useStdout();
+  const { isRawModeSupported } = useStdin();
 
   // Terminal dimensions
   const [dimensions, setDimensions] = useState({
@@ -407,7 +408,7 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
       }
       return;
     }
-  });
+  }, { isActive: !!isRawModeSupported });
 
   // Scroll indicator
   const scrollPercent = maxScroll > 0 ? Math.round((scrollOffset / maxScroll) * 100) : 100;
