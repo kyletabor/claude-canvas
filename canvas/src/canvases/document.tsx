@@ -48,8 +48,11 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
   // Live config state (can be updated via IPC)
   const [liveConfig, setLiveConfig] = useState<DocumentConfig | TabbedDocumentConfig | undefined>(initialConfig);
 
-  // Normalize config to documents array
-  const documents: TabDocument[] = liveConfig ? normalizeToTabs(liveConfig) : [{ title: "Document", content: "# Welcome\n\nNo content provided." }];
+  // Normalize config to documents array (always ensure at least one document)
+  const rawDocuments = liveConfig ? normalizeToTabs(liveConfig) : [];
+  const documents: TabDocument[] = rawDocuments.length > 0
+    ? rawDocuments
+    : [{ title: "Document", content: "# Welcome\n\nNo content provided." }];
   const hasMultipleTabs = documents.length > 1;
 
   // Switch tab callback (M1 mitigation - atomic operation)
@@ -108,9 +111,8 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
   // Config with defaults - use active document's content
   const initialContent = activeDocument?.content || "# Welcome\n\nNo content provided.";
   const title = activeTitle;
-  // Get readOnly from config if it's a DocumentConfig or TabbedDocumentConfig
-  const configReadOnly = liveConfig && "readOnly" in liveConfig ? liveConfig.readOnly : undefined;
-  const readOnly = configReadOnly ?? (scenario === "display" || isEmailPreview);
+  // readOnly: from config, or default based on scenario
+  const readOnly = (liveConfig as DocumentConfig | TabbedDocumentConfig | undefined)?.readOnly ?? (scenario === "display" || isEmailPreview);
 
   // Email-specific fields (only used in email-preview scenario)
   const emailConfig = liveConfig as EmailConfig | undefined;
