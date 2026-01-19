@@ -1,7 +1,7 @@
 // Flight Booking Canvas - Cyberpunk-themed flight comparison and seat selection
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, Text, useInput, useApp, useStdout } from "ink";
+import { Box, Text, useInput, useApp, useStdout, useStdin } from "ink";
 import { useIPC } from "./calendar/hooks/use-ipc";
 import {
   type FlightConfig,
@@ -38,6 +38,7 @@ export function FlightCanvas({
 }: Props) {
   const { exit } = useApp();
   const { stdout } = useStdout();
+  const { isRawModeSupported } = useStdin();
 
   // Terminal dimensions
   const [dimensions, setDimensions] = useState({
@@ -234,7 +235,7 @@ export function FlightCanvas({
         setSeatCursorCol((c) => Math.min(seatmap.seatsPerRow.length - 1, c + 1)); // Move toward other window (F)
       }
     }
-  });
+  }, { isActive: !!isRawModeSupported });
 
   // Layout calculations
   const termWidth = dimensions.width;

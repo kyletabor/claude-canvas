@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Box, Text, useInput, useApp, useStdout } from "ink";
+import { Box, Text, useInput, useApp, useStdout, useStdin } from "ink";
 import { MeetingPickerView } from "./calendar/scenarios/meeting-picker-view";
 import type { MeetingPickerConfig } from "../scenarios/types";
 
@@ -363,6 +363,7 @@ export function Calendar({ id, config, socketPath, scenario = "display" }: Props
   // Default display scenario
   const { exit } = useApp();
   const { stdout } = useStdout();
+  const { isRawModeSupported } = useStdin();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentTime, setCurrentTime] = useState(new Date());
   const [dimensions, setDimensions] = useState({
@@ -442,7 +443,7 @@ export function Calendar({ id, config, socketPath, scenario = "display" }: Props
     } else if (input === "t") {
       setCurrentDate(new Date());
     }
-  });
+  }, { isActive: !!isRawModeSupported });
 
   // Build time column (2 rows per hour, matching slot heights)
   const currentHour = currentTime.getHours();

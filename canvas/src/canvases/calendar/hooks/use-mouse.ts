@@ -100,7 +100,9 @@ export function useMouse(options: UseMouseOptions = {}): MouseState {
 
     // Enable mouse tracking
     process.stdout.write(MOUSE_ENABLE);
-    setRawMode(true);
+    if (setRawMode) {
+      setRawMode(true);
+    }
 
     let buffer = "";
 
@@ -153,6 +155,9 @@ export function useMouse(options: UseMouseOptions = {}): MouseState {
     return () => {
       stdin.off("data", handleData);
       process.stdout.write(MOUSE_DISABLE);
+      if (setRawMode) {
+        setRawMode(false);
+      }
     };
   }, [enabled, stdin, setRawMode]);
 

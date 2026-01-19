@@ -1,7 +1,7 @@
 // Meeting Picker View - Interactive calendar for selecting meeting times
 
 import React, { useState, useEffect, useCallback } from "react";
-import { Box, Text, useInput, useApp, useStdout } from "ink";
+import { Box, Text, useInput, useApp, useStdout, useStdin } from "ink";
 import { useMouse, type MouseEvent } from "../hooks/use-mouse";
 import { useIPC } from "../hooks/use-ipc";
 import type { MeetingPickerConfig, MeetingPickerResult, NamedCalendar } from "../../../scenarios/types";
@@ -33,6 +33,7 @@ interface SlotInfo {
 export function MeetingPickerView({ id, config, socketPath }: Props) {
   const { exit } = useApp();
   const { stdout } = useStdout();
+  const { isRawModeSupported } = useStdin();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [dimensions, setDimensions] = useState({
     width: stdout?.columns || 120,
@@ -390,7 +391,7 @@ export function MeetingPickerView({ id, config, socketPath }: Props) {
     } else if (input === "t") {
       setCurrentDate(new Date());
     }
-  });
+  }, { isActive: !!isRawModeSupported });
 
   // Render time column
   const renderTimeColumn = () => {
