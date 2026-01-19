@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: cd canvas && bun install
+
+      - name: Run tests
+        run: cd canvas && bun test
+
+      - name: Type check
+        run: cd canvas && bun run tsc --noEmit
