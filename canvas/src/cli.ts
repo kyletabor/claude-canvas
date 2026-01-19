@@ -1,10 +1,48 @@
 #!/usr/bin/env bun
 import { program } from "commander";
 import { detectTerminal, spawnCanvas } from "./terminal";
+import path from "path";
 
 // Set window title via ANSI escape codes
 function setWindowTitle(title: string) {
   process.stdout.write(`\x1b]0;${title}\x07`);
+}
+
+// Maximum file size to load (1MB)
+const MAX_FILE_SIZE = 1024 * 1024;
+
+// Load file and return TabDocument format
+async function loadFile(filePath: string): Promise<{ title: string; content: string; filePath: string }> {
+  try {
+    const file = Bun.file(filePath);
+    const size = file.size;
+    const title = path.basename(filePath);
+
+    if (size > MAX_FILE_SIZE) {
+      // File too large - show warning and truncate
+      const content = await file.text();
+      return {
+        title,
+        content: `# File too large\n\nFile size: ${(size / 1024 / 1024).toFixed(2)}MB\nMaximum: 1MB\n\nTruncated content below:\n\n---\n\n${content.slice(0, MAX_FILE_SIZE)}`,
+        filePath,
+      };
+    }
+
+    const content = await file.text();
+    return { title, content, filePath };
+  } catch (err) {
+    const title = path.basename(filePath);
+    return {
+      title,
+      content: `# Error loading file\n\nCould not read: ${filePath}\n\n${err instanceof Error ? err.message : String(err)}`,
+      filePath,
+    };
+  }
+}
+
+// Collect multiple --file flags into array
+function collectFile(value: string, previous: string[]): string[] {
+  return previous.concat([value]);
 }
 
 program
@@ -19,11 +57,25 @@ program
   .option("--config <json>", "Canvas configuration (JSON)")
   .option("--socket <path>", "Unix socket path for IPC")
   .option("--scenario <name>", "Scenario name (e.g., display, meeting-picker)")
+  .option("--file <path>", "Load file as document tab (repeatable)", collectFile, [] as string[])
   .action(async (kind = "demo", options) => {
     const id = options.id || `${kind}-1`;
-    const config = options.config ? JSON.parse(options.config) : undefined;
+    let config = options.config ? JSON.parse(options.config) : undefined;
     const socketPath = options.socket;
     const scenario = options.scenario || "display";
+
+    // Handle --file flags for document canvas
+    if (options.file && options.file.length > 0) {
+      if (config && options.config) {
+        console.warn("Warning: --file takes precedence over --config for document canvas");
+      }
+      const documents = await Promise.all(options.file.map(loadFile));
+      config = { documents };
+      // Auto-set kind to document if files provided
+      if (kind === "demo") {
+        kind = "document";
+      }
+    }
 
     // Set window title
     setWindowTitle(`canvas: ${kind}`);
@@ -40,9 +92,25 @@ program
   .option("--config <json>", "Canvas configuration (JSON)")
   .option("--socket <path>", "Unix socket path for IPC")
   .option("--scenario <name>", "Scenario name (e.g., display, meeting-picker)")
+  .option("--file <path>", "Load file as document tab (repeatable)", collectFile, [] as string[])
   .action(async (kind = "demo", options) => {
     const id = options.id || `${kind}-1`;
-    const result = await spawnCanvas(kind, id, options.config, {
+    let configJson = options.config;
+
+    // Handle --file flags for document canvas
+    if (options.file && options.file.length > 0) {
+      if (configJson) {
+        console.warn("Warning: --file takes precedence over --config for document canvas");
+      }
+      const documents = await Promise.all(options.file.map(loadFile));
+      configJson = JSON.stringify({ documents });
+      // Auto-set kind to document if files provided
+      if (kind === "demo") {
+        kind = "document";
+      }
+    }
+
+    const result = await spawnCanvas(kind, id, configJson, {
       socketPath: options.socket,
       scenario: options.scenario,
     });
