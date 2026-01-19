@@ -122,7 +122,53 @@ interface DocumentSelection {
 
 - **Mouse click and drag**: Select text (edit scenario)
 - `↑/↓` or scroll: Navigate document
-- `q` or `Esc`: Close/cancel
+- `Alt+1` through `Alt+9`: Switch between tabs (when multiple files loaded)
+- `Esc`: Close/cancel
+
+## File Loading (--file flag)
+
+Load files directly from disk as document tabs:
+
+```bash
+# Single file
+bun run src/cli.ts show document --file ./README.md
+
+# Multiple files as tabs
+bun run src/cli.ts show document --file ./PRD.md --file ./SPEC.md --file ./TODO.md
+```
+
+### Tab Navigation
+- When multiple files are loaded, a tab bar appears showing all documents
+- Use `Alt+1` through `Alt+9` to switch tabs instantly
+- Each tab preserves its scroll position independently
+- Scrollbar on the right shows current position in document
+
+### File Handling
+- Maximum file size: 1MB (larger files are truncated with warning)
+- Missing files show a friendly error message instead of crashing
+- File basename is used as tab title
+
+### Configuration (TabbedDocumentConfig)
+
+```typescript
+interface TabDocument {
+  title: string;       // Display name (usually filename)
+  content: string;     // Markdown content
+  filePath?: string;   // Original file path (for reference)
+}
+
+interface TabbedDocumentConfig {
+  documents: TabDocument[];  // Array of documents
+  activeTab?: number;        // Initially active tab (default: 0)
+  readOnly?: boolean;        // Applies to all tabs
+}
+```
+
+### Scrollbar
+The scrollbar is always visible on the right side of the document:
+- `█` (cyan) shows your current position
+- `░` (gray) shows the track
+- Hidden when document fits in viewport
 
 ## API Usage
 
