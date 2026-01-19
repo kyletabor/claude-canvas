@@ -59,12 +59,20 @@ export async function spawnCanvas(
   throw new Error("Failed to spawn tmux pane");
 }
 
-// File to track the canvas pane ID
-const CANVAS_PANE_FILE = "/tmp/claude-canvas-pane-id";
+// Get session-specific pane tracking file
+// Each tmux session gets its own file to prevent cross-session pane reuse
+function getCanvasPaneFile(): string {
+  const result = spawnSync("tmux", ["display-message", "-p", "#{session_name}"]);
+  const sessionName = result.stdout?.toString().trim() || "default";
+  // Sanitize session name for filesystem (replace special chars with underscore)
+  const safeSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return `/tmp/claude-canvas-pane-id-${safeSessionName}`;
+}
 
 async function getCanvasPaneId(): Promise<string | null> {
   try {
-    const file = Bun.file(CANVAS_PANE_FILE);
+    const paneFile = getCanvasPaneFile();
+    const file = Bun.file(paneFile);
     if (await file.exists()) {
       const paneId = (await file.text()).trim();
       // Verify the pane still exists by checking if tmux can find it
@@ -75,7 +83,7 @@ async function getCanvasPaneId(): Promise<string | null> {
         return paneId;
       }
       // Stale pane reference - clean up the file
-      await Bun.write(CANVAS_PANE_FILE, "");
+      await Bun.write(paneFile, "");
     }
   } catch {
     // Ignore errors
@@ -84,7 +92,7 @@ async function getCanvasPaneId(): Promise<string | null> {
 }
 
 async function saveCanvasPaneId(paneId: string): Promise<void> {
-  await Bun.write(CANVAS_PANE_FILE, paneId);
+  await Bun.write(getCanvasPaneFile(), paneId);
 }
 
 async function createNewPane(command: string): Promise<boolean> {
@@ -137,7 +145,7 @@ async function spawnTmux(command: string): Promise<boolean> {
       return true;
     }
     // Reuse failed (pane may have been closed) - clear stale reference and create new
-    await Bun.write(CANVAS_PANE_FILE, "");
+    await Bun.write(getCanvasPaneFile(), "");
   }
 
   // Create a new split pane
