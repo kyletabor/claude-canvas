@@ -8,6 +8,39 @@ export interface DocumentConfig {
   readOnly?: boolean;        // Disable selection (default false)
 }
 
+// Individual tab/document in tabbed view
+export interface TabDocument {
+  title: string;             // Display name (usually filename)
+  content: string;           // Markdown content
+  filePath?: string;         // Original file path (for reference)
+}
+
+// Tabbed document configuration (multiple documents)
+export interface TabbedDocumentConfig {
+  documents: TabDocument[];  // Array of documents to display as tabs
+  activeTab?: number;        // Initially active tab index (default 0)
+  readOnly?: boolean;        // Applies to all tabs
+}
+
+// Type guard: check if config is tabbed format
+export function isTabbedConfig(config: unknown): config is TabbedDocumentConfig {
+  return (
+    typeof config === "object" &&
+    config !== null &&
+    "documents" in config &&
+    Array.isArray((config as TabbedDocumentConfig).documents)
+  );
+}
+
+// Normalizer: always convert to TabDocument array
+export function normalizeToTabs(config: DocumentConfig | TabbedDocumentConfig): TabDocument[] {
+  if (isTabbedConfig(config)) {
+    return config.documents;
+  }
+  // Convert single DocumentConfig to TabDocument
+  return [{ title: config.title ?? "Document", content: config.content }];
+}
+
 // Email preview configuration (extends document for email-preview scenario)
 export interface EmailConfig extends DocumentConfig {
   from: string;              // Sender email/name
