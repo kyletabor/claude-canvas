@@ -59,14 +59,55 @@ export async function spawnCanvas(
   throw new Error("Failed to spawn tmux pane");
 }
 
-// File to track the canvas pane ID
-const CANVAS_PANE_FILE = "/tmp/claude-canvas-pane-id";
+// Get session-specific pane tracking file
+// Each tmux session gets its own file to prevent cross-session pane reuse
+export function getCanvasPaneFile(): string {
+  const result = spawnSync("tmux", ["display-message", "-p", "#{session_name}"]);
+
+  // Check for spawn errors (e.g., tmux not installed)
+  if (result.error) {
+    console.warn(
+      `[canvas] tmux command failed: ${result.error.message}. Using default session name.`
+    );
+    return "/tmp/claude-canvas-pane-id-default";
+  }
+
+  // Check for non-zero exit status (e.g., not in tmux session)
+  if (result.status !== 0) {
+    const stderr = result.stderr?.toString().trim();
+    console.warn(
+      `[canvas] tmux returned status ${result.status}${stderr ? `: ${stderr}` : ""}. Using default session name.`
+    );
+    return "/tmp/claude-canvas-pane-id-default";
+  }
+
+  const sessionName = result.stdout?.toString().trim();
+
+  // Check for empty session name
+  if (!sessionName) {
+    console.warn("[canvas] tmux returned empty session name. Using default.");
+    return "/tmp/claude-canvas-pane-id-default";
+  }
+
+  // Sanitize session name for filesystem (replace special chars with underscore)
+  const safeSessionName = sanitizeSessionName(sessionName);
+  return `/tmp/claude-canvas-pane-id-${safeSessionName}`;
+}
+
+// Exported for testing
+export function sanitizeSessionName(sessionName: string): string {
+  return sessionName.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
 
 async function getCanvasPaneId(): Promise<string | null> {
   try {
-    const file = Bun.file(CANVAS_PANE_FILE);
+    const paneFile = getCanvasPaneFile();
+    const file = Bun.file(paneFile);
     if (await file.exists()) {
       const paneId = (await file.text()).trim();
+      if (!paneId) {
+        return null;
+      }
       // Verify the pane still exists by checking if tmux can find it
       const result = spawnSync("tmux", ["display-message", "-t", paneId, "-p", "#{pane_id}"]);
       const output = result.stdout?.toString().trim();
@@ -75,16 +116,36 @@ async function getCanvasPaneId(): Promise<string | null> {
         return paneId;
       }
       // Stale pane reference - clean up the file
-      await Bun.write(CANVAS_PANE_FILE, "");
+      await clearCanvasPaneFile(paneFile);
     }
-  } catch {
-    // Ignore errors
+  } catch (error) {
+    // Log unexpected errors for debugging but continue gracefully
+    console.warn(
+      `[canvas] Error reading pane ID: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
   return null;
 }
 
 async function saveCanvasPaneId(paneId: string): Promise<void> {
-  await Bun.write(CANVAS_PANE_FILE, paneId);
+  try {
+    await Bun.write(getCanvasPaneFile(), paneId);
+  } catch (error) {
+    // Log but don't fail - pane was created, just tracking failed
+    console.warn(
+      `[canvas] Failed to save pane ID: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+async function clearCanvasPaneFile(paneFile: string): Promise<void> {
+  try {
+    await Bun.write(paneFile, "");
+  } catch (error) {
+    console.warn(
+      `[canvas] Failed to clear pane file: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 }
 
 async function createNewPane(command: string): Promise<boolean> {
@@ -137,7 +198,7 @@ async function spawnTmux(command: string): Promise<boolean> {
       return true;
     }
     // Reuse failed (pane may have been closed) - clear stale reference and create new
-    await Bun.write(CANVAS_PANE_FILE, "");
+    await clearCanvasPaneFile(getCanvasPaneFile());
   }
 
   // Create a new split pane

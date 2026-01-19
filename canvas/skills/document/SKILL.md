@@ -19,13 +19,30 @@ Try asking Claude:
 - "Show me the README so I can select sections to update"
 - "Compose a response to this customer complaint"
 
+## Important: Use `spawn` (not `show`) When Displaying to Users
+
+When Claude wants to display a canvas to the user, **always use `spawn`**, not `show`.
+
+- `show` runs the canvas in the current terminal. When Claude runs commands via subprocess, this terminal is NOT visible to the user - the output gets captured as text.
+- `spawn` creates a new tmux pane that IS visible to the user.
+
+**Wrong (user won't see it):**
+```bash
+bun run src/cli.ts show document --config '{"content": "..."}'
+```
+
+**Correct (user will see it):**
+```bash
+bun run src/cli.ts spawn document --config '{"content": "..."}'
+```
+
 ## Scenarios
 
 ### `display` (default)
 Read-only document view with markdown rendering. User can scroll but cannot select text.
 
 ```bash
-bun run src/cli.ts show document --scenario display --config '{
+bun run src/cli.ts spawn document --scenario display --config '{
   "content": "# Hello World\n\nThis is **markdown** content.",
   "title": "My Document"
 }'
@@ -53,7 +70,7 @@ bun run src/cli.ts spawn document --scenario edit --config '{
 Specialized view for email content display.
 
 ```bash
-bun run src/cli.ts show document --scenario email-preview --config '{
+bun run src/cli.ts spawn document --scenario email-preview --config '{
   "content": "Dear Team,\n\nPlease review the attached document.\n\nBest regards,\nAlice",
   "title": "RE: Project Update"
 }'
