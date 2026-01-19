@@ -22,14 +22,24 @@ export interface TabbedDocumentConfig {
   readOnly?: boolean;        // Applies to all tabs
 }
 
-// Type guard: check if config is tabbed format
-export function isTabbedConfig(config: unknown): config is TabbedDocumentConfig {
+// Helper: validate a single TabDocument has required fields
+function isValidTabDocument(doc: unknown): doc is TabDocument {
   return (
-    typeof config === "object" &&
-    config !== null &&
-    "documents" in config &&
-    Array.isArray((config as TabbedDocumentConfig).documents)
+    typeof doc === "object" &&
+    doc !== null &&
+    typeof (doc as TabDocument).title === "string" &&
+    typeof (doc as TabDocument).content === "string"
   );
+}
+
+// Type guard: check if config is tabbed format with valid documents
+export function isTabbedConfig(config: unknown): config is TabbedDocumentConfig {
+  if (typeof config !== "object" || config === null) return false;
+  if (!("documents" in config)) return false;
+  const docs = (config as { documents: unknown }).documents;
+  if (!Array.isArray(docs)) return false;
+  // Validate each element has required fields (title and content strings)
+  return docs.every(isValidTabDocument);
 }
 
 // Normalizer: always convert to TabDocument array
@@ -39,6 +49,15 @@ export function normalizeToTabs(config: DocumentConfig | TabbedDocumentConfig): 
   }
   // Convert single DocumentConfig to TabDocument
   return [{ title: config.title ?? "Document", content: config.content }];
+}
+
+// Validate activeTab bounds and return a safe value
+export function validateActiveTab(activeTab: number | undefined, documentCount: number): number {
+  if (activeTab === undefined) return 0;
+  if (documentCount <= 0) return 0;
+  if (activeTab < 0) return 0;
+  if (activeTab >= documentCount) return Math.max(0, documentCount - 1);
+  return activeTab;
 }
 
 // Email preview configuration (extends document for email-preview scenario)

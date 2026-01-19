@@ -6,6 +6,7 @@ import {
   TabbedDocumentConfig,
   isTabbedConfig,
   normalizeToTabs,
+  validateActiveTab,
   DocumentConfig,
 } from "../types";
 
@@ -43,6 +44,47 @@ describe("isTabbedConfig", () => {
   it("returns false when documents is not an array", () => {
     const config = { documents: "not an array" };
     expect(isTabbedConfig(config)).toBe(false);
+  });
+
+  // New tests for improved validation (PR review #6)
+  it("returns false when documents contains invalid elements (missing title)", () => {
+    const config = { documents: [{ content: "no title" }] };
+    expect(isTabbedConfig(config)).toBe(false);
+  });
+
+  it("returns false when documents contains invalid elements (missing content)", () => {
+    const config = { documents: [{ title: "no content" }] };
+    expect(isTabbedConfig(config)).toBe(false);
+  });
+
+  it("returns false when documents contains null elements", () => {
+    const config = { documents: [null] };
+    expect(isTabbedConfig(config)).toBe(false);
+  });
+
+  it("returns false when documents contains mixed valid and invalid elements", () => {
+    const config = {
+      documents: [
+        { title: "Valid", content: "valid content" },
+        { invalid: "element" },
+      ],
+    };
+    expect(isTabbedConfig(config)).toBe(false);
+  });
+
+  it("returns true when documents contains all valid elements", () => {
+    const config = {
+      documents: [
+        { title: "Doc 1", content: "Content 1" },
+        { title: "Doc 2", content: "Content 2", filePath: "/optional/path" },
+      ],
+    };
+    expect(isTabbedConfig(config)).toBe(true);
+  });
+
+  it("returns true for empty documents array", () => {
+    const config = { documents: [] };
+    expect(isTabbedConfig(config)).toBe(true);
   });
 });
 
@@ -136,5 +178,47 @@ describe("TabbedDocumentConfig interface", () => {
       readOnly: true,
     };
     expect(config.readOnly).toBe(true);
+  });
+});
+
+// Tests for validateActiveTab (PR review #6)
+describe("validateActiveTab", () => {
+  it("returns 0 for undefined activeTab", () => {
+    expect(validateActiveTab(undefined, 3)).toBe(0);
+  });
+
+  it("returns the activeTab value when valid", () => {
+    expect(validateActiveTab(1, 3)).toBe(1);
+    expect(validateActiveTab(2, 3)).toBe(2);
+  });
+
+  it("returns 0 for negative activeTab", () => {
+    expect(validateActiveTab(-1, 3)).toBe(0);
+    expect(validateActiveTab(-100, 5)).toBe(0);
+  });
+
+  it("returns last valid index for activeTab >= documentCount", () => {
+    expect(validateActiveTab(3, 3)).toBe(2);
+    expect(validateActiveTab(10, 3)).toBe(2);
+    expect(validateActiveTab(100, 5)).toBe(4);
+  });
+
+  it("returns 0 for edge case where documentCount is 0", () => {
+    expect(validateActiveTab(0, 0)).toBe(0);
+    expect(validateActiveTab(5, 0)).toBe(0);
+  });
+
+  it("returns 0 for edge case where documentCount is 1", () => {
+    expect(validateActiveTab(0, 1)).toBe(0);
+    expect(validateActiveTab(1, 1)).toBe(0);
+    expect(validateActiveTab(5, 1)).toBe(0);
+  });
+
+  it("handles first valid index correctly", () => {
+    expect(validateActiveTab(0, 5)).toBe(0);
+  });
+
+  it("handles last valid index correctly", () => {
+    expect(validateActiveTab(4, 5)).toBe(4);
   });
 });

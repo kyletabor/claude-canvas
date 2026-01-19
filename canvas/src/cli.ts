@@ -11,8 +11,17 @@ function setWindowTitle(title: string) {
 // Maximum file size to load (1MB)
 const MAX_FILE_SIZE = 1024 * 1024;
 
-// Load file and return TabDocument format
-async function loadFile(filePath: string): Promise<{ title: string; content: string; filePath: string }> {
+// Result type for loadFile with explicit error indicator
+interface LoadFileResult {
+  title: string;
+  content: string;
+  filePath: string;
+  error?: string;      // If set, indicates file loading failed
+  truncated?: boolean; // If true, file was truncated due to size limit
+}
+
+// Load file and return TabDocument format with explicit error indicator
+async function loadFile(filePath: string): Promise<LoadFileResult> {
   try {
     const file = Bun.file(filePath);
     const size = file.size;
@@ -25,6 +34,7 @@ async function loadFile(filePath: string): Promise<{ title: string; content: str
         title,
         content: `# File too large\n\nFile size: ${(size / 1024 / 1024).toFixed(2)}MB\nMaximum: 1MB\n\nTruncated content below:\n\n---\n\n${content.slice(0, MAX_FILE_SIZE)}`,
         filePath,
+        truncated: true,
       };
     }
 
@@ -32,10 +42,12 @@ async function loadFile(filePath: string): Promise<{ title: string; content: str
     return { title, content, filePath };
   } catch (err) {
     const title = path.basename(filePath);
+    const errorMsg = err instanceof Error ? err.message : String(err);
     return {
       title,
-      content: `# Error loading file\n\nCould not read: ${filePath}\n\n${err instanceof Error ? err.message : String(err)}`,
+      content: `# Error loading file\n\nCould not read: ${filePath}\n\n${errorMsg}`,
       filePath,
+      error: errorMsg,
     };
   }
 }
@@ -43,6 +55,18 @@ async function loadFile(filePath: string): Promise<{ title: string; content: str
 // Collect multiple --file flags into array
 function collectFile(value: string, previous: string[]): string[] {
   return previous.concat([value]);
+}
+
+// Parse JSON config with user-friendly error handling
+function parseConfigJson(jsonStr: string, context: string): unknown {
+  try {
+    return JSON.parse(jsonStr);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error(`Error: Invalid JSON in ${context}: ${errorMsg}`);
+    console.error(`Received: ${jsonStr.slice(0, 100)}${jsonStr.length > 100 ? "..." : ""}`);
+    process.exit(1);
+  }
 }
 
 program
@@ -60,7 +84,7 @@ program
   .option("--file <path>", "Load file as document tab (repeatable)", collectFile, [] as string[])
   .action(async (kind = "demo", options) => {
     const id = options.id || `${kind}-1`;
-    let config = options.config ? JSON.parse(options.config) : undefined;
+    let config = options.config ? parseConfigJson(options.config, "--config") : undefined;
     const socketPath = options.socket;
     const scenario = options.scenario || "display";
 
@@ -134,7 +158,7 @@ program
   .action(async (id: string, options) => {
     const { getSocketPath } = await import("./ipc/types");
     const socketPath = getSocketPath(id);
-    const config = options.config ? JSON.parse(options.config) : {};
+    const config = options.config ? parseConfigJson(options.config, "--config") : {};
 
     try {
       const socket = await Bun.connect({
