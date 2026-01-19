@@ -53,6 +53,55 @@ jobs:
           CURRENT_SHA=$(git rev-parse --short HEAD)
           echo "Local clone synced to $CURRENT_SHA"
 
+      - name: Install dependencies
+        run: |
+          set -e
+          echo "Installing canvas dependencies..."
+          cd /home/orangepi/claude-canvas/canvas
+          bun install
+
+          # Verify critical deps installed
+          if [ ! -d node_modules/react ]; then
+            echo "ERROR: react not installed"
+            exit 1
+          fi
+          echo "Dependencies installed successfully"
+
+      - name: Verify plugin symlink
+        run: |
+          set -e
+          SYMLINK_PATH="/home/orangepi/.claude/plugins/cache/claude-canvas/canvas/0.1.0"
+          TARGET_PATH="/home/orangepi/claude-canvas/canvas"
+
+          # Create parent dirs if missing
+          mkdir -p "$(dirname $SYMLINK_PATH)"
+
+          # Check if symlink exists and points to correct target
+          if [ -L "$SYMLINK_PATH" ]; then
+            CURRENT_TARGET=$(readlink -f "$SYMLINK_PATH")
+            if [ "$CURRENT_TARGET" = "$TARGET_PATH" ]; then
+              echo "Symlink valid: $SYMLINK_PATH -> $TARGET_PATH"
+            else
+              echo "Symlink points to wrong target, fixing..."
+              rm "$SYMLINK_PATH"
+              ln -s "$TARGET_PATH" "$SYMLINK_PATH"
+            fi
+          elif [ -d "$SYMLINK_PATH" ]; then
+            echo "Cache is a directory (not symlink), replacing with symlink..."
+            rm -rf "$SYMLINK_PATH"
+            ln -s "$TARGET_PATH" "$SYMLINK_PATH"
+          else
+            echo "Creating symlink..."
+            ln -s "$TARGET_PATH" "$SYMLINK_PATH"
+          fi
+
+          # Final verification
+          if [ ! -f "$SYMLINK_PATH/src/cli.ts" ]; then
+            echo "ERROR: Symlink verification failed - cli.ts not accessible"
+            exit 1
+          fi
+          echo "Plugin symlink verified successfully"
+
       - name: Deployment summary
         run: |
           echo ""
