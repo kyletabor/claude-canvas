@@ -12,6 +12,7 @@ permissions:
 jobs:
   deploy-production:
     runs-on: [self-hosted, orange-pi]
+    timeout-minutes: 10
 
     steps:
       - name: Checkout code
@@ -22,6 +23,7 @@ jobs:
       - name: Get commit info
         id: commit
         run: |
+          set -e
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           echo "message=$(git log -1 --pretty=%s)" >> $GITHUB_OUTPUT
 
