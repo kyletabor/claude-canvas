@@ -8,6 +8,58 @@ export interface DocumentConfig {
   readOnly?: boolean;        // Disable selection (default false)
 }
 
+// Individual tab/document in tabbed view
+export interface TabDocument {
+  title: string;             // Display name (usually filename)
+  content: string;           // Markdown content
+  filePath?: string;         // Original file path (for reference)
+}
+
+// Tabbed document configuration (multiple documents)
+export interface TabbedDocumentConfig {
+  documents: TabDocument[];  // Array of documents to display as tabs
+  activeTab?: number;        // Initially active tab index (default 0)
+  readOnly?: boolean;        // Applies to all tabs
+}
+
+// Helper: validate a single TabDocument has required fields
+function isValidTabDocument(doc: unknown): doc is TabDocument {
+  return (
+    typeof doc === "object" &&
+    doc !== null &&
+    typeof (doc as TabDocument).title === "string" &&
+    typeof (doc as TabDocument).content === "string"
+  );
+}
+
+// Type guard: check if config is tabbed format with valid documents
+export function isTabbedConfig(config: unknown): config is TabbedDocumentConfig {
+  if (typeof config !== "object" || config === null) return false;
+  if (!("documents" in config)) return false;
+  const docs = (config as { documents: unknown }).documents;
+  if (!Array.isArray(docs)) return false;
+  // Validate each element has required fields (title and content strings)
+  return docs.every(isValidTabDocument);
+}
+
+// Normalizer: always convert to TabDocument array
+export function normalizeToTabs(config: DocumentConfig | TabbedDocumentConfig): TabDocument[] {
+  if (isTabbedConfig(config)) {
+    return config.documents;
+  }
+  // Convert single DocumentConfig to TabDocument
+  return [{ title: config.title ?? "Document", content: config.content }];
+}
+
+// Validate activeTab bounds and return a safe value
+export function validateActiveTab(activeTab: number | undefined, documentCount: number): number {
+  if (activeTab === undefined) return 0;
+  if (documentCount <= 0) return 0;
+  if (activeTab < 0) return 0;
+  if (activeTab >= documentCount) return Math.max(0, documentCount - 1);
+  return activeTab;
+}
+
 // Email preview configuration (extends document for email-preview scenario)
 export interface EmailConfig extends DocumentConfig {
   from: string;              // Sender email/name

@@ -16,6 +16,7 @@ export interface UseIPCServerOptions {
 
 export interface IPCServerHandle {
   isConnected: boolean;
+  ipcError: string | null;  // If set, IPC server failed to start
   sendReady: () => void;
   sendSelected: (data: unknown) => void;
   sendCancelled: (reason?: string) => void;
@@ -26,6 +27,7 @@ export function useIPCServer(options: UseIPCServerOptions): IPCServerHandle {
   const { socketPath, scenario, onClose, onUpdate, onGetSelection, onGetContent } = options;
   const { exit } = useApp();
   const [isConnected, setIsConnected] = useState(false);
+  const [ipcError, setIpcError] = useState<string | null>(null);
   const serverRef = useRef<IPCServer | null>(null);
   const onCloseRef = useRef(onClose);
   const onUpdateRef = useRef(onUpdate);
@@ -94,7 +96,11 @@ export function useIPCServer(options: UseIPCServerOptions): IPCServerHandle {
           server.close();
         }
       } catch (err) {
-        console.error("Failed to start IPC server:", err);
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error("Failed to start IPC server:", errMsg);
+        if (mounted) {
+          setIpcError(errMsg);
+        }
       }
     };
 
@@ -125,6 +131,7 @@ export function useIPCServer(options: UseIPCServerOptions): IPCServerHandle {
 
   return {
     isConnected,
+    ipcError,
     sendReady,
     sendSelected,
     sendCancelled,

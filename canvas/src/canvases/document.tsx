@@ -4,13 +4,14 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Box, Text, useInput, useApp, useStdout, useStdin } from "ink";
 import { useIPCServer } from "./calendar/hooks/use-ipc-server";
 import { useMouse } from "./calendar/hooks/use-mouse";
-import { RawMarkdownRenderer } from "./document/components/raw-markdown-renderer";
+import { RawMarkdownRenderer, TabBar, Scrollbar } from "./document/components";
 import { EmailHeader } from "./document/components/email-header";
-import type { DocumentConfig, EmailConfig } from "./document/types";
+import type { DocumentConfig, EmailConfig, TabDocument, TabbedDocumentConfig } from "./document/types";
+import { normalizeToTabs, isTabbedConfig } from "./document/types";
 
 interface Props {
   id: string;
-  config?: DocumentConfig;
+  config?: DocumentConfig | TabbedDocumentConfig;
   socketPath?: string;
   scenario?: string;
 }
@@ -29,6 +30,11 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
   // Scroll state
   const [scrollOffset, setScrollOffset] = useState(0);
 
+  // Tab state - for multi-document support
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  // Use ref for scroll offsets to avoid stale closure issues (M1 mitigation)
+  const scrollOffsetsRef = useRef<Map<number, number>>(new Map());
+
   // Cursor position (character offset in content)
   const [cursorPosition, setCursorPosition] = useState(0);
 
@@ -40,7 +46,39 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
   const isDraggingRef = useRef(false);
 
   // Live config state (can be updated via IPC)
-  const [liveConfig, setLiveConfig] = useState<DocumentConfig | undefined>(initialConfig);
+  const [liveConfig, setLiveConfig] = useState<DocumentConfig | TabbedDocumentConfig | undefined>(initialConfig);
+
+  // Normalize config to documents array (always ensure at least one document)
+  const rawDocuments = liveConfig ? normalizeToTabs(liveConfig) : [];
+  const documents: TabDocument[] = rawDocuments.length > 0
+    ? rawDocuments
+    : [{ title: "Document", content: "# Welcome\n\nNo content provided." }];
+  const hasMultipleTabs = documents.length > 1;
+
+  // Switch tab callback (M1 mitigation - atomic operation)
+  const switchTab = useCallback((targetTab: number) => {
+    if (targetTab < 0 || targetTab >= documents.length) return;
+    if (targetTab === activeTabIndex) return;
+
+    // Save current scroll position FIRST (atomic with switch)
+    scrollOffsetsRef.current.set(activeTabIndex, scrollOffset);
+
+    // Switch to target tab
+    setActiveTabIndex(targetTab);
+
+    // Restore target tab's scroll position (with fallback to 0)
+    const savedScroll = scrollOffsetsRef.current.get(targetTab) ?? 0;
+    setScrollOffset(savedScroll);
+
+    // Reset cursor position for new tab
+    setCursorPosition(0);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  }, [activeTabIndex, scrollOffset, documents.length]);
+
+  // Get active document content
+  const activeDocument = documents[activeTabIndex] || documents[0];
+  const activeTitle = activeDocument?.title || "Document";
 
   // IPC for communicating with Claude (server mode for CLI)
   const ipc = useIPCServer({
@@ -48,7 +86,7 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
     scenario: scenario || "display",
     onClose: () => exit(),
     onUpdate: (newConfig) => {
-      setLiveConfig(newConfig as DocumentConfig);
+      setLiveConfig(newConfig as DocumentConfig | TabbedDocumentConfig);
     },
     onGetSelection: () => {
       if (selectionStart === null || selectionEnd === null) return null;
@@ -70,12 +108,11 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
   // Check if this is an email preview scenario
   const isEmailPreview = scenario === "email-preview";
 
-  // Config with defaults
-  const {
-    content: initialContent = "# Welcome\n\nNo content provided.",
-    title,
-    readOnly = scenario === "display" || isEmailPreview,
-  } = liveConfig || {};
+  // Config with defaults - use active document's content
+  const initialContent = activeDocument?.content || "# Welcome\n\nNo content provided.";
+  const title = activeTitle;
+  // readOnly: from config, or default based on scenario
+  const readOnly = (liveConfig as DocumentConfig | TabbedDocumentConfig | undefined)?.readOnly ?? (scenario === "display" || isEmailPreview);
 
   // Email-specific fields (only used in email-preview scenario)
   const emailConfig = liveConfig as EmailConfig | undefined;
@@ -88,12 +125,11 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
   // Editable content state
   const [content, setContent] = useState(initialContent);
 
-  // Sync content when liveConfig changes
+  // Sync content when liveConfig or active tab changes
   useEffect(() => {
-    if (liveConfig?.content) {
-      setContent(liveConfig.content);
-    }
-  }, [liveConfig?.content]);
+    const newContent = activeDocument?.content || "# Welcome\n\nNo content provided.";
+    setContent(newContent);
+  }, [activeDocument?.content, activeTabIndex]);
 
   // Listen for terminal resize
   useEffect(() => {
@@ -114,14 +150,17 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
   const termWidth = dimensions.width;
   const termHeight = dimensions.height;
   const maxDocWidth = 80;
-  const docWidth = Math.min(termWidth - 8, maxDocWidth);
+  // Reserve 3 chars for scrollbar (1 char + 2 margin)
+  const docWidth = Math.min(termWidth - 8 - 3, maxDocWidth);
   const headerHeight = 3;
   const footerHeight = 2;
+  // Tab bar takes 2 lines when multiple tabs present (1 for tabs + 1 marginBottom)
+  const tabBarHeight = hasMultipleTabs ? 2 : 0;
   // Email header takes extra lines: from, to, cc (optional), bcc (optional), subject, separator
   const emailHeaderLines = isEmailPreview
     ? 3 + (emailCc && emailCc.length > 0 ? 1 : 0) + (emailBcc && emailBcc.length > 0 ? 1 : 0) + 2
     : 0;
-  const viewportHeight = termHeight - headerHeight - footerHeight - emailHeaderLines - 2;
+  const viewportHeight = termHeight - headerHeight - footerHeight - emailHeaderLines - tabBarHeight - 2;
 
   // Line count and max scroll
   const totalLines = content.split("\n").length;
@@ -251,6 +290,16 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
       }
       ipc.sendCancelled("User quit");
       exit();
+      return;
+    }
+
+    // Alt+number (1-9) for tab switching (M5 mitigation - works in both modes)
+    // key.meta is the Alt key in most terminals
+    if (key.meta && input && input >= "1" && input <= "9") {
+      const targetTab = parseInt(input, 10) - 1;
+      if (targetTab < documents.length) {
+        switchTab(targetTab);
+      }
       return;
     }
 
@@ -429,7 +478,7 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
     <Box flexDirection="column" width={termWidth} height={termHeight}>
       {/* Title bar - centered */}
       <Box justifyContent="center" marginBottom={1}>
-        <Box width={docWidth}>
+        <Box width={docWidth + 3}>
           <Text bold color="white">
             {isEmailPreview ? "Email Preview" : (title || "Document")}
           </Text>
@@ -440,42 +489,62 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
         </Box>
       </Box>
 
-      {/* Document with border - centered */}
+      {/* Tab bar when multiple documents */}
+      {hasMultipleTabs && (
+        <Box justifyContent="center" marginBottom={1}>
+          <Box width={docWidth + 3}>
+            <TabBar tabs={documents} activeIndex={activeTabIndex} focused={true} />
+          </Box>
+        </Box>
+      )}
+
+      {/* Document with border and scrollbar - centered */}
       <Box justifyContent="center" flexGrow={1}>
-        <Box
-          width={docWidth}
-          flexDirection="column"
-          borderStyle="round"
-          borderColor={isEmailPreview ? "blue" : "green"}
-          paddingX={2}
-          paddingY={1}
-        >
-          {/* Email header for email-preview scenario */}
-          {isEmailPreview && (
-            <EmailHeader
-              from={emailFrom}
-              to={emailTo}
-              cc={emailCc}
-              bcc={emailBcc}
-              subject={emailSubject}
-              width={docWidth - 6}
+        <Box flexDirection="row">
+          <Box
+            width={docWidth}
+            flexDirection="column"
+            borderStyle="round"
+            borderColor={isEmailPreview ? "blue" : "green"}
+            paddingX={2}
+            paddingY={1}
+          >
+            {/* Email header for email-preview scenario */}
+            {isEmailPreview && (
+              <EmailHeader
+                from={emailFrom}
+                to={emailTo}
+                cc={emailCc}
+                bcc={emailBcc}
+                subject={emailSubject}
+                width={docWidth - 6}
+              />
+            )}
+            <RawMarkdownRenderer
+              content={content}
+              cursorPosition={readOnly ? undefined : cursorPosition}
+              selectionStart={selectionStart}
+              selectionEnd={selectionEnd}
+              scrollOffset={scrollOffset}
+              viewportHeight={viewportHeight}
+              terminalWidth={docWidth - 6}
             />
-          )}
-          <RawMarkdownRenderer
-            content={content}
-            cursorPosition={readOnly ? undefined : cursorPosition}
-            selectionStart={selectionStart}
-            selectionEnd={selectionEnd}
-            scrollOffset={scrollOffset}
-            viewportHeight={viewportHeight}
-            terminalWidth={docWidth - 6}
-          />
+          </Box>
+          {/* Scrollbar on right */}
+          <Box marginLeft={1}>
+            <Scrollbar
+              scrollOffset={scrollOffset}
+              totalLines={totalLines}
+              viewportHeight={viewportHeight}
+              height={viewportHeight}
+            />
+          </Box>
         </Box>
       </Box>
 
       {/* Status bar - single line, centered */}
       <Box justifyContent="center">
-        <Box width={docWidth} justifyContent="space-between">
+        <Box width={docWidth + 3} justifyContent="space-between">
           <Text color="gray" dimColor>
             {readOnly ? "↑↓ scroll • Esc quit" : "click/drag select • type to edit • Esc quit"}
           </Text>
