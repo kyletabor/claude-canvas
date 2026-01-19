@@ -5,12 +5,15 @@ import { resolve } from "path";
 describe("Raw Mode Compatibility", () => {
   const CLI_PATH = resolve(import.meta.dir, "../cli.ts");
   const TIMEOUT = 5000;
+  // Use process.execPath to get the current bun executable path
+  // This works in CI (GitHub Actions) and local development
+  const BUN_PATH = process.execPath;
 
   test("document canvas does not crash in non-TTY environment", async () => {
     const config = JSON.stringify({ content: "# Test", title: "Test" });
 
     const proc = spawn({
-      cmd: ["bun", "run", CLI_PATH, "show", "document", "--config", config],
+      cmd: [BUN_PATH, "run", CLI_PATH, "show", "document", "--config", config],
       cwd: resolve(import.meta.dir, "../.."),
       stdin: "ignore", // Non-TTY stdin
       stdout: "pipe",
@@ -32,7 +35,7 @@ describe("Raw Mode Compatibility", () => {
 
   test("calendar canvas does not crash in non-TTY environment", async () => {
     const proc = spawn({
-      cmd: ["bun", "run", CLI_PATH, "show", "calendar"],
+      cmd: [BUN_PATH, "run", CLI_PATH, "show", "calendar"],
       cwd: resolve(import.meta.dir, "../.."),
       stdin: "ignore",
       stdout: "pipe",
@@ -65,7 +68,44 @@ describe("Raw Mode Compatibility", () => {
     });
 
     const proc = spawn({
-      cmd: ["bun", "run", CLI_PATH, "show", "flight", "--config", config],
+      cmd: [BUN_PATH, "run", CLI_PATH, "show", "flight", "--config", config],
+      cwd: resolve(import.meta.dir, "../.."),
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    proc.kill();
+
+    const stderr = await new Response(proc.stderr).text();
+    expect(stderr).not.toContain("Raw mode is not supported");
+  });
+
+  test("meeting-picker scenario does not crash in non-TTY environment", async () => {
+    // Meeting picker requires a config with available slots
+    const config = JSON.stringify({
+      duration: 30,
+      availableSlots: [
+        {
+          start: new Date().toISOString(),
+          end: new Date(Date.now() + 1800000).toISOString(),
+        },
+      ],
+    });
+
+    const proc = spawn({
+      cmd: [
+        BUN_PATH,
+        "run",
+        CLI_PATH,
+        "show",
+        "calendar",
+        "--scenario",
+        "meeting-picker",
+        "--config",
+        config,
+      ],
       cwd: resolve(import.meta.dir, "../.."),
       stdin: "ignore",
       stdout: "pipe",
