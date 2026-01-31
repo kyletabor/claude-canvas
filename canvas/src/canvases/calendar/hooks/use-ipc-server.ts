@@ -16,6 +16,7 @@ export interface UseIPCServerOptions {
 
 export interface IPCServerHandle {
   isConnected: boolean;
+  send: (message: CanvasMessage) => void;
   sendReady: () => void;
   sendSelected: (data: unknown) => void;
   sendCancelled: (reason?: string) => void;
@@ -107,6 +108,10 @@ export function useIPCServer(options: UseIPCServerOptions): IPCServerHandle {
     };
   }, [socketPath, scenario, exit]);
 
+  const send = useCallback((message: CanvasMessage) => {
+    serverRef.current?.broadcast(message);
+  }, []);
+
   const sendReady = useCallback(() => {
     serverRef.current?.broadcast({ type: "ready", scenario });
   }, [scenario]);
@@ -125,6 +130,7 @@ export function useIPCServer(options: UseIPCServerOptions): IPCServerHandle {
 
   return {
     isConnected,
+    send,
     sendReady,
     sendSelected,
     sendCancelled,

@@ -2,6 +2,10 @@
 
 import React from "react";
 import { Box, Text } from "ink";
+import type { Comment } from "../types/comments";
+
+// Width of comment indicator column
+export const INDICATOR_WIDTH = 2;
 
 interface Props {
   content: string;
@@ -11,6 +15,8 @@ interface Props {
   scrollOffset?: number;
   viewportHeight?: number;
   terminalWidth?: number;
+  commentsByLine?: { [line: number]: Comment[] };
+  cursorLine?: number;
 }
 
 // Markdown syntax highlighting colors
@@ -159,6 +165,8 @@ export function RawMarkdownRenderer({
   scrollOffset = 0,
   viewportHeight = 20,
   terminalWidth = 76,
+  commentsByLine = {},
+  cursorLine: cursorLineProp,
 }: Props) {
   const lines = content.split("\n");
   const visibleLines = lines.slice(scrollOffset, scrollOffset + viewportHeight);
@@ -228,10 +236,25 @@ export function RawMarkdownRenderer({
           }
         }
 
+        // Check for comments on this line (1-based)
+        const lineComments = commentsByLine[absoluteLineNumber + 1] || [];
+        const hasComments = lineComments.length > 0;
+        const isCurrentLine = cursorLineProp !== undefined && cursorLineProp === absoluteLineNumber;
+
+        // Render comment indicator
+        const indicator = hasComments ? (
+          <Text color={isCurrentLine ? "yellow" : "cyan"}>
+            {lineComments.length > 1 ? `${lineComments.length > 9 ? '9+' : lineComments.length}` : '💬'}
+          </Text>
+        ) : (
+          <Text>{"  "}</Text>
+        );
+
         // Inside code block - render as plain green (with cursor/selection support)
         if (inCodeBlock && !line.startsWith("```")) {
           return (
             <Box key={absoluteLineNumber}>
+              {indicator}
               {renderLineWithCursorAndSelection(
                 line,
                 hasCursor ? cursorCol : -1,
@@ -248,6 +271,7 @@ export function RawMarkdownRenderer({
 
         return (
           <Box key={absoluteLineNumber}>
+            {indicator}
             {renderSegmentsWithCursorAndSelection(
               segments,
               line,

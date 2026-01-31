@@ -6,7 +6,10 @@ import { useIPCServer } from "./calendar/hooks/use-ipc-server";
 import { useMouse } from "./calendar/hooks/use-mouse";
 import { RawMarkdownRenderer } from "./document/components/raw-markdown-renderer";
 import { EmailHeader } from "./document/components/email-header";
+import { CommentBox } from "./document/components/comment-box";
+import { useComments } from "./document/hooks/use-comments";
 import type { DocumentConfig, EmailConfig } from "./document/types";
+import type { Comment } from "./document/types/comments";
 
 interface Props {
   id: string;
@@ -87,6 +90,31 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
 
   // Editable content state
   const [content, setContent] = useState(initialContent);
+
+  // Comment system
+  const {
+    comments,
+    commentsByLine,
+    commentBox,
+    openCommentBox,
+    closeCommentBox,
+    setCommentInput,
+    saveComment,
+    viewComment,
+    editComment,
+    deleteComment,
+    navigateToNextComment,
+    navigateToPrevComment,
+    addResponse,
+  } = useComments({
+    documentId: id,
+    onCommentCreated: (comment) => {
+      ipc.send({ type: 'commentCreated', data: comment });
+    },
+    onCommentTrigger: (comment, context) => {
+      ipc.send({ type: 'commentTrigger', data: { comment, documentContext: context } });
+    },
+  });
 
   // Sync content when liveConfig changes
   useEffect(() => {
@@ -234,11 +262,96 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
     });
   }, [getCursorLine, viewportHeight]);
 
+  // Helper: get line and column from cursor position
+  const getLineColFromPos = useCallback((pos: number, text: string) => {
+    let line = 1;
+    let col = 1;
+    for (let i = 0; i < pos && i < text.length; i++) {
+      if (text[i] === "\n") {
+        line++;
+        col = 1;
+      } else {
+        col++;
+      }
+    }
+    return { line, col };
+  }, []);
+
   // Keyboard controls
   useInput((input, key) => {
     // Ignore mouse escape sequence fragments that leak through
     // These look like: <, [, digits, ;, M, m, etc. from \x1b[<btn;x;y[Mm]
     if (input && /^[<\[\];Mm\d]+$/.test(input)) {
+      return;
+    }
+
+    // Comment box is open - handle comment box input
+    if (commentBox.isOpen) {
+      // Escape closes comment box
+      if (key.escape) {
+        closeCommentBox();
+        return;
+      }
+
+      // In view mode
+      if (commentBox.mode === 'view') {
+        // Ctrl+Enter to ask Claude (check before plain Enter)
+        if (key.return && key.ctrl && commentBox.commentId) {
+          const comment = comments.find(c => c.id === commentBox.commentId);
+          if (comment) {
+            ipc.send({ type: 'commentTrigger', data: { comment, documentContext: comment.selection.selectedText } });
+          }
+          return;
+        }
+        // Enter closes
+        if (key.return) {
+          closeCommentBox();
+          return;
+        }
+        // 'e' to edit
+        if (input === 'e' && commentBox.commentId) {
+          editComment(commentBox.commentId);
+          return;
+        }
+        // 'd' to delete
+        if (input === 'd' && commentBox.commentId) {
+          deleteComment(commentBox.commentId);
+          return;
+        }
+        return;
+      }
+
+      // In create/edit mode
+      // Ctrl+Enter saves and triggers Claude
+      if (key.return && key.ctrl) {
+        saveComment(true);
+        return;
+      }
+
+      // Enter saves comment
+      if (key.return && !key.shift) {
+        saveComment(false);
+        return;
+      }
+
+      // Shift+Enter adds newline
+      if (key.return && key.shift) {
+        setCommentInput(commentBox.inputText + "\n");
+        return;
+      }
+
+      // Backspace deletes character
+      if (key.backspace) {
+        setCommentInput(commentBox.inputText.slice(0, -1));
+        return;
+      }
+
+      // Regular character input
+      if (input && !key.ctrl && !key.meta) {
+        setCommentInput(commentBox.inputText + input);
+        return;
+      }
+
       return;
     }
 
@@ -254,7 +367,7 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
       return;
     }
 
-    // In read-only mode, only allow scrolling
+    // In read-only mode, only allow scrolling and comment navigation
     if (readOnly) {
       if (key.upArrow) {
         setScrollOffset((o) => Math.max(0, o - 1));
@@ -272,6 +385,62 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
     const text = content;
     const pos = cursorPosition;
     const selection = getSelectionBounds();
+
+    // Ctrl+K: Open comment box when text is selected
+    if (key.ctrl && input === 'k') {
+      if (selection) {
+        // Close any existing comment box first
+        if (commentBox.isOpen) {
+          closeCommentBox();
+        }
+        const startPos = getLineColFromPos(selection.start, text);
+        const endPos = getLineColFromPos(selection.end, text);
+        openCommentBox({
+          startOffset: selection.start,
+          endOffset: selection.end,
+          startLine: startPos.line,
+          endLine: endPos.line,
+          selectedText: text.slice(selection.start, selection.end),
+        });
+        // Clear selection after opening comment box
+        clearSelection();
+      }
+      return;
+    }
+
+    // Alt+n: Jump to next comment (Alt to avoid conflicting with typing)
+    if (input === 'n' && key.meta && !selection) {
+      const currentLine = getLineColFromPos(pos, text).line;
+      const nextLine = navigateToNextComment(currentLine);
+      if (nextLine !== null) {
+        // Move cursor to the start of that line
+        const lines = text.split("\n");
+        let offset = 0;
+        for (let i = 0; i < nextLine - 1 && i < lines.length; i++) {
+          offset += lines[i].length + 1;
+        }
+        setCursorPosition(offset);
+        ensureCursorVisible(offset, text);
+      }
+      return;
+    }
+
+    // Alt+p: Jump to previous comment
+    if (input === 'p' && key.meta && !selection) {
+      const currentLine = getLineColFromPos(pos, text).line;
+      const prevLine = navigateToPrevComment(currentLine);
+      if (prevLine !== null) {
+        // Move cursor to the start of that line
+        const lines = text.split("\n");
+        let offset = 0;
+        for (let i = 0; i < prevLine - 1 && i < lines.length; i++) {
+          offset += lines[i].length + 1;
+        }
+        setCursorPosition(offset);
+        ensureCursorVisible(offset, text);
+      }
+      return;
+    }
 
     // Arrow keys - cursor movement (clears selection)
     if (key.leftArrow) {
@@ -369,8 +538,17 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
       return;
     }
 
-    // Enter - replace selection or insert newline
+    // Enter - view comment, replace selection, or insert newline
     if (key.return) {
+      // Check if current line has comments
+      const currentLine = getLineColFromPos(pos, text).line;
+      const lineComments = commentsByLine[currentLine];
+      if (lineComments && lineComments.length > 0 && !selection) {
+        // View first comment on this line
+        viewComment(lineComments[0].id);
+        return;
+      }
+
       if (selection) {
         const result = deleteSelection();
         if (result) {
@@ -469,7 +647,19 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
             scrollOffset={scrollOffset}
             viewportHeight={viewportHeight}
             terminalWidth={docWidth - 6}
+            commentsByLine={commentsByLine}
+            cursorLine={cursorLine}
           />
+          {/* Comment box overlay */}
+          {commentBox.isOpen && (
+            <Box marginTop={1}>
+              <CommentBox
+                state={commentBox}
+                comment={commentBox.commentId ? comments.find(c => c.id === commentBox.commentId) : undefined}
+                width={docWidth - 6}
+              />
+            </Box>
+          )}
         </Box>
       </Box>
 
@@ -477,7 +667,11 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
       <Box justifyContent="center">
         <Box width={docWidth} justifyContent="space-between">
           <Text color="gray" dimColor>
-            {readOnly ? "↑↓ scroll • Esc quit" : "click/drag select • type to edit • Esc quit"}
+            {readOnly
+              ? "↑↓ scroll • Esc quit"
+              : commentBox.isOpen
+                ? "Enter save • Esc cancel • Ctrl+Enter ask Claude"
+                : "Ctrl+K comment • Alt+n/p nav • Enter view • Esc quit"}
           </Text>
           <Text color="gray" dimColor>
             {!readOnly && (
