@@ -280,8 +280,11 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
   // Keyboard controls
   useInput((input, key) => {
     // Ignore mouse escape sequence fragments that leak through
-    // These look like: <, [, digits, ;, M, m, etc. from \x1b[<btn;x;y[Mm]
-    if (input && /^[<\[\];Mm\d]+$/.test(input)) {
+    // SGR mouse format: \x1b[<btn;x;yM (press) or \x1b[<btn;x;ym (release)
+    // After ESC is consumed, fragments like "<35;120;45M" or ";120;45M" may leak
+    // We filter: (1) coordinate patterns with semicolons, or (2) prefix + digit
+    // Single characters (m, M, ;, <, digits) are NOT filtered - they're valid input
+    if (input && /^\d*(;\d+)+[Mm]?$|^[\[<]\d/.test(input)) {
       return;
     }
 
