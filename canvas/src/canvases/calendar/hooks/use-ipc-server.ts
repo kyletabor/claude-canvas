@@ -12,6 +12,7 @@ export interface UseIPCServerOptions {
   onUpdate?: (config: unknown) => void;
   onGetSelection?: () => { selectedText: string; startOffset: number; endOffset: number } | null;
   onGetContent?: () => { content: string; cursorPosition: number };
+  onCommentResponse?: (data: { commentId: string; response: string }) => void;
 }
 
 export interface IPCServerHandle {
@@ -24,7 +25,7 @@ export interface IPCServerHandle {
 }
 
 export function useIPCServer(options: UseIPCServerOptions): IPCServerHandle {
-  const { socketPath, scenario, onClose, onUpdate, onGetSelection, onGetContent } = options;
+  const { socketPath, scenario, onClose, onUpdate, onGetSelection, onGetContent, onCommentResponse } = options;
   const { exit } = useApp();
   const [isConnected, setIsConnected] = useState(false);
   const serverRef = useRef<IPCServer | null>(null);
@@ -32,13 +33,15 @@ export function useIPCServer(options: UseIPCServerOptions): IPCServerHandle {
   const onUpdateRef = useRef(onUpdate);
   const onGetSelectionRef = useRef(onGetSelection);
   const onGetContentRef = useRef(onGetContent);
+  const onCommentResponseRef = useRef(onCommentResponse);
 
   useEffect(() => {
     onCloseRef.current = onClose;
     onUpdateRef.current = onUpdate;
     onGetSelectionRef.current = onGetSelection;
     onGetContentRef.current = onGetContent;
-  }, [onClose, onUpdate, onGetSelection, onGetContent]);
+    onCommentResponseRef.current = onCommentResponse;
+  }, [onClose, onUpdate, onGetSelection, onGetContent, onCommentResponse]);
 
   // Start server on mount
   useEffect(() => {
@@ -71,6 +74,9 @@ export function useIPCServer(options: UseIPCServerOptions): IPCServerHandle {
                 if (contentData) {
                   server.broadcast({ type: "content", data: contentData });
                 }
+                break;
+              case "commentResponse":
+                onCommentResponseRef.current?.(msg.data);
                 break;
             }
           },

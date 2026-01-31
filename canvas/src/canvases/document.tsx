@@ -68,6 +68,9 @@ export function Document({ id, config: initialConfig, socketPath, scenario = "di
       content,
       cursorPosition,
     }),
+    onCommentResponse: (data) => {
+      addResponse(data.commentId, data.response);
+    },
   });
 
   // Check if this is an email preview scenario
