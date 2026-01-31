@@ -20,7 +20,7 @@ interface Props {
 }
 
 // Markdown syntax highlighting colors
-const SYNTAX_COLORS = {
+export const SYNTAX_COLORS = {
   header: "cyan",
   bold: "yellow",
   italic: "magenta",
@@ -33,7 +33,7 @@ const SYNTAX_COLORS = {
   hr: "gray",
 } as const;
 
-interface HighlightedSegment {
+export interface HighlightedSegment {
   text: string;
   color?: string;
   bold?: boolean;
@@ -42,7 +42,7 @@ interface HighlightedSegment {
 }
 
 // Tokenize a line of markdown for syntax highlighting
-function highlightLine(line: string): HighlightedSegment[] {
+export function highlightLine(line: string): HighlightedSegment[] {
   const segments: HighlightedSegment[] = [];
 
   // Check for header
@@ -94,7 +94,7 @@ function highlightLine(line: string): HighlightedSegment[] {
 }
 
 // Highlight inline markdown elements
-function highlightInline(text: string, baseStyle: Partial<HighlightedSegment> = {}): HighlightedSegment[] {
+export function highlightInline(text: string, baseStyle: Partial<HighlightedSegment> = {}): HighlightedSegment[] {
   const segments: HighlightedSegment[] = [];
   let remaining = text;
 
