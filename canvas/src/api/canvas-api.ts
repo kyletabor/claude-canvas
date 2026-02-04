@@ -52,7 +52,7 @@ export async function spawnCanvasWithIPC<TConfig, TResult>(
 
     const server = createIPCServer({
       socketPath,
-      onConnect() {
+      onClientConnect() {
         // Canvas connected, waiting for ready message
       },
       onMessage(msg: CanvasMessage) {
@@ -95,7 +95,7 @@ export async function spawnCanvasWithIPC<TConfig, TResult>(
             break;
         }
       },
-      onDisconnect() {
+      onClientDisconnect() {
         if (!resolved) {
           resolved = true;
           cleanup();
