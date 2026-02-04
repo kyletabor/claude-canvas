@@ -1,10 +1,13 @@
 /**
- * Utility functions for the Beads Canvas tree rendering.
- * Provides tree flattening and prefix generation for hierarchical display.
+ * BeadTree component and utility functions for the Beads Canvas tree rendering.
+ * Provides tree flattening, prefix generation, and the main tree view component.
  */
 
+import React from 'react';
+import { Box, Text } from 'ink';
 import type { BeadNode, FlattenedNode } from '../types';
-import { TREE_CHARS } from '../types';
+import { TREE_CHARS, BEAD_COLORS } from '../types';
+import { BeadRow } from './bead-row';
 
 /** Maximum depth to prevent stack overflow on deeply nested/circular trees */
 const MAX_DEPTH = 50;
@@ -137,4 +140,79 @@ export function getTreePrefix(flat: FlattenedNode): string {
   }
 
   return parts.join('');
+}
+
+/**
+ * Props for the BeadTree component.
+ */
+export interface BeadTreeProps {
+  /** Flattened nodes to display */
+  nodes: FlattenedNode[];
+  /** Index of currently selected node */
+  selectedIndex: number;
+  /** Index of first visible node (for scrolling) */
+  scrollOffset: number;
+  /** Number of rows visible in viewport */
+  viewportHeight: number;
+  /** Available width for rendering */
+  width: number;
+}
+
+/**
+ * BeadTree component - Renders the full tree using BeadRow components.
+ * Handles windowed rendering for scrolling and shows scroll indicators.
+ */
+export function BeadTree({
+  nodes,
+  selectedIndex,
+  scrollOffset,
+  viewportHeight,
+  width,
+}: BeadTreeProps): React.JSX.Element {
+  // Handle empty state
+  if (!nodes || nodes.length === 0) {
+    return (
+      <Box flexDirection="column" height={viewportHeight} justifyContent="center" alignItems="center">
+        <Text color={BEAD_COLORS.dim}>No beads to display</Text>
+      </Box>
+    );
+  }
+
+  // Calculate visible range
+  const visibleNodes = nodes.slice(scrollOffset, scrollOffset + viewportHeight);
+
+  // Calculate scroll indicators
+  const itemsAbove = scrollOffset;
+  const itemsBelow = Math.max(0, nodes.length - scrollOffset - viewportHeight);
+
+  // Calculate height for content (accounting for scroll indicators)
+  const hasTopIndicator = itemsAbove > 0;
+  const hasBottomIndicator = itemsBelow > 0;
+  const contentHeight = viewportHeight - (hasTopIndicator ? 1 : 0) - (hasBottomIndicator ? 1 : 0);
+
+  return (
+    <Box flexDirection="column" height={viewportHeight}>
+      {/* Top scroll indicator */}
+      {hasTopIndicator && (
+        <Text color={BEAD_COLORS.dim}>↑ {itemsAbove} more</Text>
+      )}
+
+      {/* Visible nodes */}
+      <Box flexDirection="column" height={contentHeight}>
+        {visibleNodes.slice(0, contentHeight).map((flat) => (
+          <BeadRow
+            key={flat.node.id}
+            flat={flat}
+            isSelected={flat.flatIndex === selectedIndex}
+            width={width}
+          />
+        ))}
+      </Box>
+
+      {/* Bottom scroll indicator */}
+      {hasBottomIndicator && (
+        <Text color={BEAD_COLORS.dim}>↓ {itemsBelow} more</Text>
+      )}
+    </Box>
+  );
 }

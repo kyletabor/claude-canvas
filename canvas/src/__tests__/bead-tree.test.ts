@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { flattenTree, getTreePrefix } from '../canvases/beads/components/bead-tree';
+import { flattenTree, getTreePrefix, BeadTree } from '../canvases/beads/components/bead-tree';
 import type { BeadNode, FlattenedNode } from '../canvases/beads/types';
 import { TREE_CHARS } from '../canvases/beads/types';
 
@@ -219,5 +219,87 @@ describe('getTreePrefix', () => {
       TREE_CHARS.BRANCH + TREE_CHARS.HORIZONTAL +
       TREE_CHARS.EXPANDED + ' '
     );
+  });
+});
+
+describe('BeadTree Component', () => {
+  const makeFlatNode = (id: string, flatIndex: number, overrides?: Partial<FlattenedNode>): FlattenedNode => ({
+    node: makeNode(id),
+    depth: 0,
+    isLast: true,
+    isExpanded: false,
+    hasChildren: false,
+    parentPath: [],
+    flatIndex,
+    ...overrides,
+  });
+
+  it('exports BeadTree function', () => {
+    expect(typeof BeadTree).toBe('function');
+  });
+
+  it('does not throw when rendered with empty nodes', () => {
+    expect(() => BeadTree({
+      nodes: [],
+      selectedIndex: 0,
+      scrollOffset: 0,
+      viewportHeight: 10,
+      width: 80,
+    })).not.toThrow();
+  });
+
+  it('does not throw when rendered with nodes', () => {
+    const nodes = [makeFlatNode('a', 0), makeFlatNode('b', 1)];
+    expect(() => BeadTree({
+      nodes,
+      selectedIndex: 0,
+      scrollOffset: 0,
+      viewportHeight: 10,
+      width: 80,
+    })).not.toThrow();
+  });
+
+  it('does not throw with scrollOffset greater than 0', () => {
+    const nodes = Array.from({ length: 20 }, (_, i) => makeFlatNode(`node-${i}`, i));
+    expect(() => BeadTree({
+      nodes,
+      selectedIndex: 5,
+      scrollOffset: 5,
+      viewportHeight: 10,
+      width: 80,
+    })).not.toThrow();
+  });
+
+  it('handles scrollOffset at end of list', () => {
+    const nodes = Array.from({ length: 20 }, (_, i) => makeFlatNode(`node-${i}`, i));
+    expect(() => BeadTree({
+      nodes,
+      selectedIndex: 15,
+      scrollOffset: 15,
+      viewportHeight: 10,
+      width: 80,
+    })).not.toThrow();
+  });
+
+  it('handles viewportHeight larger than nodes', () => {
+    const nodes = [makeFlatNode('a', 0)];
+    expect(() => BeadTree({
+      nodes,
+      selectedIndex: 0,
+      scrollOffset: 0,
+      viewportHeight: 100,
+      width: 80,
+    })).not.toThrow();
+  });
+
+  it('handles narrow width', () => {
+    const nodes = [makeFlatNode('a', 0)];
+    expect(() => BeadTree({
+      nodes,
+      selectedIndex: 0,
+      scrollOffset: 0,
+      viewportHeight: 10,
+      width: 20,
+    })).not.toThrow();
   });
 });
