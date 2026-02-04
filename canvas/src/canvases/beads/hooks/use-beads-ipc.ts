@@ -8,6 +8,7 @@ import { useApp } from "ink";
 import { connectWithRetry, type IPCClient } from "../../../ipc/client";
 import type { CanvasMessage, ControllerMessage } from "../../../ipc/types";
 import type { BeadsConfig } from "../types";
+import { safeParseBeadsConfig } from "../../../ipc/schemas";
 
 export interface UseBeadsIPCOptions {
   /** IPC socket path */
@@ -72,15 +73,27 @@ export function useBeadsIPC(options: UseBeadsIPCOptions): BeadsIPCHandle {
                 onCloseRef.current?.();
                 exit();
                 break;
-              case "update":
-                onUpdateRef.current?.(msg.config as BeadsConfig);
+              case "update": {
+                const config = safeParseBeadsConfig(msg.config);
+                if (config) {
+                  onUpdateRef.current?.(config as BeadsConfig);
+                } else {
+                  console.error("Invalid BeadsConfig received:", msg.config);
+                }
                 break;
+              }
               case "ping":
                 client.send({ type: "pong" });
                 break;
-              case "showDetails":
-                onShowDetailsRef.current?.(msg.beadId);
+              case "showDetails": {
+                const beadId = msg.beadId;
+                if (typeof beadId === "string" && beadId.length > 0) {
+                  onShowDetailsRef.current?.(beadId);
+                } else {
+                  console.error("Invalid beadId received:", beadId);
+                }
                 break;
+              }
             }
           },
           onDisconnect: () => {
