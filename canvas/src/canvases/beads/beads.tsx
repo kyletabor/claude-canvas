@@ -1,0 +1,168 @@
+/**
+ * BeadsCanvas - Main orchestration component for the Beads Canvas.
+ * Combines HeaderBar, BeadTree, and StatusBar into a unified tree viewer.
+ */
+
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Box, useApp, useStdout } from 'ink';
+import type { BeadsConfig } from './types';
+import { HeaderBar } from './components/header-bar';
+import { StatusBar, type FocusMode } from './components/status-bar';
+import { BeadTree, flattenTree } from './components/bead-tree';
+import { useTreeNavigation } from './hooks';
+
+export interface BeadsCanvasProps {
+  /** Unique canvas instance ID */
+  id: string;
+  /** Initial configuration */
+  config?: BeadsConfig;
+  /** IPC socket path for communication */
+  socketPath?: string;
+  /** Scenario name (for IPC) */
+  scenario?: string;
+}
+
+/**
+ * Main Beads Canvas component.
+ * Orchestrates all sub-components for displaying hierarchical bead trees.
+ */
+export function BeadsCanvas({
+  id,
+  config: initialConfig,
+  socketPath,
+  scenario,
+}: BeadsCanvasProps): React.JSX.Element {
+  const { exit } = useApp();
+  const { stdout } = useStdout();
+
+  // Terminal dimensions
+  const [dimensions, setDimensions] = useState({
+    width: stdout?.columns || 120,
+    height: stdout?.rows || 40,
+  });
+
+  // Config (can be updated via IPC in future)
+  const [config, setConfig] = useState<BeadsConfig | undefined>(initialConfig);
+
+  // Tree state
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  // Focus mode
+  const [focusMode, setFocusMode] = useState<FocusMode>('tree');
+  const [detailBeadId, setDetailBeadId] = useState<string | null>(null);
+
+  // Listen for terminal resize
+  useEffect(() => {
+    const updateDimensions = () => {
+      setDimensions({
+        width: stdout?.columns || 120,
+        height: stdout?.rows || 40,
+      });
+    };
+    stdout?.on('resize', updateDimensions);
+    updateDimensions();
+    return () => {
+      stdout?.off('resize', updateDimensions);
+    };
+  }, [stdout]);
+
+  // Compute flattened tree
+  const flattenedNodes = useMemo(
+    () => flattenTree(config?.nodes || [], expandedIds),
+    [config?.nodes, expandedIds]
+  );
+
+  // Layout calculation
+  const HEADER_HEIGHT = 2;
+  const FOOTER_HEIGHT = 2;
+  const contentHeight = dimensions.height - HEADER_HEIGHT - FOOTER_HEIGHT;
+
+  // Toggle expand/collapse handler
+  const handleToggle = useCallback((beadId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(beadId)) {
+        next.delete(beadId);
+      } else {
+        next.add(beadId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Details handler
+  const handleDetails = useCallback((beadId: string) => {
+    setDetailBeadId(beadId);
+    setFocusMode('detail');
+  }, []);
+
+  // Refresh handler (placeholder for IPC integration)
+  const handleRefresh = useCallback(() => {
+    // TODO: Integrate with IPC to request fresh data
+  }, []);
+
+  // Epic navigation handler (placeholder for multi-epic support)
+  const handleEpicNav = useCallback((direction: 'prev' | 'next') => {
+    // TODO: Implement epic switching when multiple epics are supported
+  }, []);
+
+  // Quit handler
+  const handleQuit = useCallback(() => {
+    exit();
+  }, [exit]);
+
+  // Wire up navigation hook
+  const { selectedIndex, scrollOffset } = useTreeNavigation({
+    flattenedNodes,
+    viewportHeight: contentHeight,
+    onToggle: handleToggle,
+    onDetails: handleDetails,
+    onRefresh: handleRefresh,
+    onEpicNav: handleEpicNav,
+    onQuit: handleQuit,
+  });
+
+  return (
+    <Box
+      flexDirection="column"
+      width={dimensions.width}
+      height={dimensions.height}
+    >
+      {/* Header */}
+      <HeaderBar
+        title={config?.title}
+        epicIndex={config?.epicIndex ?? 1}
+        totalEpics={config?.totalEpics ?? 1}
+        width={dimensions.width}
+      />
+
+      {/* Main content area */}
+      <Box flexDirection="row" height={contentHeight}>
+        {/* Tree view */}
+        <BeadTree
+          nodes={flattenedNodes}
+          selectedIndex={selectedIndex}
+          scrollOffset={scrollOffset}
+          viewportHeight={contentHeight}
+          width={focusMode === 'detail' ? Math.floor(dimensions.width * 0.5) : dimensions.width}
+        />
+
+        {/* Detail panel (future implementation) */}
+        {focusMode === 'detail' && (
+          <Box
+            flexDirection="column"
+            width={Math.floor(dimensions.width * 0.5)}
+            borderStyle="single"
+            borderColor="gray"
+            paddingX={1}
+          >
+            {/* DetailPanel will be implemented in a future leg */}
+          </Box>
+        )}
+      </Box>
+
+      {/* Footer */}
+      <StatusBar width={dimensions.width} focusMode={focusMode} />
+    </Box>
+  );
+}
