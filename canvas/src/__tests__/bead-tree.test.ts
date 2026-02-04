@@ -1,5 +1,12 @@
+/**
+ * Tests for BeadTree component and getTreePrefix utility.
+ *
+ * Note: flattenTree tests have been consolidated into beads.test.ts
+ * to avoid duplication.
+ */
+
 import { describe, expect, it } from 'bun:test';
-import { flattenTree, getTreePrefix, BeadTree } from '../canvases/beads/components/bead-tree';
+import { getTreePrefix, BeadTree } from '../canvases/beads/components/bead-tree';
 import type { BeadNode, FlattenedNode } from '../canvases/beads/types';
 import { TREE_CHARS } from '../canvases/beads/types';
 
@@ -11,144 +18,28 @@ const makeNode = (id: string, children?: BeadNode[]): BeadNode => ({
   children,
 });
 
-describe('flattenTree', () => {
-  it('returns empty array for empty input', () => {
-    const result = flattenTree([], new Set());
-    expect(result).toEqual([]);
-  });
-
-  it('returns empty array for undefined/null-like input', () => {
-    const result = flattenTree(undefined as unknown as BeadNode[], new Set());
-    expect(result).toEqual([]);
-  });
-
-  it('flattens a single node without children', () => {
-    const nodes = [makeNode('a')];
-    const result = flattenTree(nodes, new Set());
-
-    expect(result).toHaveLength(1);
-    expect(result[0]!.node.id).toBe('a');
-    expect(result[0]!.depth).toBe(0);
-    expect(result[0]!.isLast).toBe(true);
-    expect(result[0]!.hasChildren).toBe(false);
-    expect(result[0]!.isExpanded).toBe(false);
-    expect(result[0]!.parentPath).toEqual([]);
-    expect(result[0]!.flatIndex).toBe(0);
-  });
-
-  it('flattens multiple root nodes', () => {
-    const nodes = [makeNode('a'), makeNode('b'), makeNode('c')];
-    const result = flattenTree(nodes, new Set());
-
-    expect(result).toHaveLength(3);
-    expect(result[0]!.isLast).toBe(false);
-    expect(result[1]!.isLast).toBe(false);
-    expect(result[2]!.isLast).toBe(true);
-  });
-
-  it('does not include children when not expanded', () => {
-    const nodes = [makeNode('a', [makeNode('b')])];
-    const result = flattenTree(nodes, new Set());
-
-    expect(result).toHaveLength(1);
-    expect(result[0]!.hasChildren).toBe(true);
-    expect(result[0]!.isExpanded).toBe(false);
-  });
-
-  it('includes children when expanded', () => {
-    const nodes = [makeNode('a', [makeNode('b')])];
-    const result = flattenTree(nodes, new Set(['a']));
-
-    expect(result).toHaveLength(2);
-    expect(result[0]!.node.id).toBe('a');
-    expect(result[0]!.isExpanded).toBe(true);
-    expect(result[1]!.node.id).toBe('b');
-    expect(result[1]!.depth).toBe(1);
-    expect(result[1]!.parentPath).toEqual([true]); // a is last sibling
-  });
-
-  it('handles nested expanded tree', () => {
-    const nodes = [
-      makeNode('a', [
-        makeNode('b', [makeNode('c')]),
-      ]),
-    ];
-    const result = flattenTree(nodes, new Set(['a', 'b']));
-
-    expect(result).toHaveLength(3);
-    expect(result[0]!.depth).toBe(0);
-    expect(result[1]!.depth).toBe(1);
-    expect(result[2]!.depth).toBe(2);
-    expect(result[2]!.parentPath).toEqual([true, true]);
-  });
-
-  it('tracks parentPath correctly for mixed siblings', () => {
-    const nodes = [
-      makeNode('a', [
-        makeNode('a1'),
-        makeNode('a2'),
-      ]),
-      makeNode('b', [makeNode('b1')]),
-    ];
-    const result = flattenTree(nodes, new Set(['a', 'b']));
-
-    expect(result).toHaveLength(5);
-    // a's children have parentPath [false] (a is not last)
-    expect(result[1]!.parentPath).toEqual([false]);
-    expect(result[2]!.parentPath).toEqual([false]);
-    // b's children have parentPath [true] (b is last)
-    expect(result[4]!.parentPath).toEqual([true]);
-  });
-
-  it('handles circular references without infinite loop', () => {
-    const a: BeadNode = makeNode('a');
-    const b: BeadNode = makeNode('b');
-    a.children = [b];
-    b.children = [a]; // circular!
-
-    const result = flattenTree([a], new Set(['a', 'b']));
-
-    // Should not hang, and should skip the circular ref
-    expect(result.length).toBeGreaterThan(0);
-    expect(result.length).toBeLessThan(10); // Should not explode
-  });
-
-  it('handles nodes with empty children array as leaves', () => {
-    const nodes = [makeNode('a', [])];
-    const result = flattenTree(nodes, new Set(['a']));
-
-    expect(result).toHaveLength(1);
-    expect(result[0]!.hasChildren).toBe(false);
-  });
-
-  it('handles nodes with undefined children as leaves', () => {
-    const nodes = [makeNode('a')];
-    nodes[0]!.children = undefined;
-    const result = flattenTree(nodes, new Set(['a']));
-
-    expect(result).toHaveLength(1);
-    expect(result[0]!.hasChildren).toBe(false);
-  });
+const makeFlatNode = (overrides: Partial<FlattenedNode>): FlattenedNode => ({
+  node: makeNode('test'),
+  depth: 0,
+  isLast: true,
+  isExpanded: false,
+  hasChildren: false,
+  parentPath: [],
+  flatIndex: 0,
+  ...overrides,
 });
 
-describe('getTreePrefix', () => {
-  const makeFlatNode = (overrides: Partial<FlattenedNode>): FlattenedNode => ({
-    node: makeNode('test'),
-    depth: 0,
-    isLast: true,
-    isExpanded: false,
-    hasChildren: false,
-    parentPath: [],
-    flatIndex: 0,
-    ...overrides,
-  });
+// ============================================================================
+// getTreePrefix Tests
+// ============================================================================
 
+describe('getTreePrefix', () => {
   it('returns empty string for root node without children', () => {
     const prefix = getTreePrefix(makeFlatNode({ depth: 0, hasChildren: false }));
     expect(prefix).toBe('');
   });
 
-  it('returns expand indicator for root node with children (collapsed)', () => {
+  it('returns collapse indicator for root node with children (collapsed)', () => {
     const prefix = getTreePrefix(makeFlatNode({
       depth: 0,
       hasChildren: true,
@@ -166,7 +57,7 @@ describe('getTreePrefix', () => {
     expect(prefix).toBe(TREE_CHARS.EXPANDED + ' ');
   });
 
-  it('returns branch for depth 1 last sibling', () => {
+  it('uses └ branch for last sibling at depth 1', () => {
     const prefix = getTreePrefix(makeFlatNode({
       depth: 1,
       isLast: true,
@@ -175,7 +66,7 @@ describe('getTreePrefix', () => {
     expect(prefix).toBe(TREE_CHARS.LAST + TREE_CHARS.HORIZONTAL);
   });
 
-  it('returns branch for depth 1 non-last sibling', () => {
+  it('uses ├ branch for non-last sibling at depth 1', () => {
     const prefix = getTreePrefix(makeFlatNode({
       depth: 1,
       isLast: false,
@@ -184,7 +75,7 @@ describe('getTreePrefix', () => {
     expect(prefix).toBe(TREE_CHARS.BRANCH + TREE_CHARS.HORIZONTAL);
   });
 
-  it('includes pipe for non-last parent', () => {
+  it('includes pipe │ for non-last parent in ancestry', () => {
     const prefix = getTreePrefix(makeFlatNode({
       depth: 2,
       isLast: true,
@@ -194,7 +85,7 @@ describe('getTreePrefix', () => {
     expect(prefix).toBe(TREE_CHARS.PIPE + '   ' + TREE_CHARS.LAST + TREE_CHARS.HORIZONTAL);
   });
 
-  it('includes space for last parent', () => {
+  it('includes space for last parent in ancestry', () => {
     const prefix = getTreePrefix(makeFlatNode({
       depth: 2,
       isLast: true,
@@ -204,7 +95,7 @@ describe('getTreePrefix', () => {
     expect(prefix).toBe('    ' + TREE_CHARS.LAST + TREE_CHARS.HORIZONTAL);
   });
 
-  it('builds complex prefix for deeply nested node', () => {
+  it('builds complex prefix for deeply nested node with children', () => {
     const prefix = getTreePrefix(makeFlatNode({
       depth: 3,
       isLast: false,
@@ -212,7 +103,7 @@ describe('getTreePrefix', () => {
       hasChildren: true,
       isExpanded: true,
     }));
-    // pipe + space + branch + horizontal + expanded
+    // │   (for non-last parent) + 4 spaces (for last parent) + ├── + ▼ + space
     expect(prefix).toBe(
       TREE_CHARS.PIPE + '   ' +
       '    ' +
@@ -220,10 +111,30 @@ describe('getTreePrefix', () => {
       TREE_CHARS.EXPANDED + ' '
     );
   });
+
+  it('builds prefix with multiple levels of ancestry', () => {
+    const prefix = getTreePrefix(makeFlatNode({
+      depth: 4,
+      isLast: true,
+      parentPath: [false, false, true], // varied ancestry
+      hasChildren: false,
+    }));
+    // │   │   space   └──
+    expect(prefix).toBe(
+      TREE_CHARS.PIPE + '   ' +
+      TREE_CHARS.PIPE + '   ' +
+      '    ' +
+      TREE_CHARS.LAST + TREE_CHARS.HORIZONTAL
+    );
+  });
 });
 
+// ============================================================================
+// BeadTree Component Tests
+// ============================================================================
+
 describe('BeadTree Component', () => {
-  const makeFlatNode = (id: string, flatIndex: number, overrides?: Partial<FlattenedNode>): FlattenedNode => ({
+  const makeFlatNodeForTree = (id: string, flatIndex: number, overrides?: Partial<FlattenedNode>): FlattenedNode => ({
     node: makeNode(id),
     depth: 0,
     isLast: true,
@@ -238,18 +149,38 @@ describe('BeadTree Component', () => {
     expect(typeof BeadTree).toBe('function');
   });
 
-  it('does not throw when rendered with empty nodes', () => {
-    expect(() => BeadTree({
+  it('renders empty state message when nodes is empty', () => {
+    const result = BeadTree({
       nodes: [],
       selectedIndex: 0,
       scrollOffset: 0,
       viewportHeight: 10,
       width: 80,
-    })).not.toThrow();
+    });
+
+    // Should render without throwing
+    expect(result).toBeDefined();
+    // Check for empty state text in the output
+    const texts: string[] = [];
+    function extractText(node: unknown): void {
+      if (typeof node === 'string' || typeof node === 'number') texts.push(String(node));
+      if (typeof node === 'object' && node !== null) {
+        const elem = node as { props?: { children?: unknown } };
+        if (elem.props?.children) {
+          if (Array.isArray(elem.props.children)) {
+            elem.props.children.forEach(extractText);
+          } else {
+            extractText(elem.props.children);
+          }
+        }
+      }
+    }
+    extractText(result);
+    expect(texts.join('')).toContain('No beads to display');
   });
 
-  it('does not throw when rendered with nodes', () => {
-    const nodes = [makeFlatNode('a', 0), makeFlatNode('b', 1)];
+  it('renders nodes without throwing', () => {
+    const nodes = [makeFlatNodeForTree('a', 0), makeFlatNodeForTree('b', 1)];
     expect(() => BeadTree({
       nodes,
       selectedIndex: 0,
@@ -259,47 +190,115 @@ describe('BeadTree Component', () => {
     })).not.toThrow();
   });
 
-  it('does not throw with scrollOffset greater than 0', () => {
-    const nodes = Array.from({ length: 20 }, (_, i) => makeFlatNode(`node-${i}`, i));
-    expect(() => BeadTree({
+  it('handles scrollOffset greater than 0', () => {
+    const nodes = Array.from({ length: 20 }, (_, i) => makeFlatNodeForTree(`node-${i}`, i));
+    const result = BeadTree({
       nodes,
-      selectedIndex: 5,
+      selectedIndex: 10,
       scrollOffset: 5,
       viewportHeight: 10,
       width: 80,
-    })).not.toThrow();
+    });
+    expect(result).toBeDefined();
   });
 
-  it('handles scrollOffset at end of list', () => {
-    const nodes = Array.from({ length: 20 }, (_, i) => makeFlatNode(`node-${i}`, i));
-    expect(() => BeadTree({
+  it('shows top scroll indicator when items above viewport', () => {
+    const nodes = Array.from({ length: 20 }, (_, i) => makeFlatNodeForTree(`node-${i}`, i));
+    const result = BeadTree({
       nodes,
-      selectedIndex: 15,
-      scrollOffset: 15,
+      selectedIndex: 10,
+      scrollOffset: 5,
       viewportHeight: 10,
       width: 80,
-    })).not.toThrow();
+    });
+
+    // Extract text to check for scroll indicator
+    const texts: string[] = [];
+    function extractText(node: unknown): void {
+      if (typeof node === 'string' || typeof node === 'number') texts.push(String(node));
+      if (typeof node === 'object' && node !== null) {
+        const elem = node as { props?: { children?: unknown } };
+        if (elem.props?.children) {
+          if (Array.isArray(elem.props.children)) {
+            elem.props.children.forEach(extractText);
+          } else {
+            extractText(elem.props.children);
+          }
+        }
+      }
+    }
+    extractText(result);
+    const text = texts.join('');
+    expect(text).toContain('↑');
+    expect(text).toContain('more');
+    // itemsAbove = scrollOffset = 5
+    expect(text).toMatch(/↑.*5.*more/);
   });
 
-  it('handles viewportHeight larger than nodes', () => {
-    const nodes = [makeFlatNode('a', 0)];
-    expect(() => BeadTree({
+  it('shows bottom scroll indicator when items below viewport', () => {
+    const nodes = Array.from({ length: 20 }, (_, i) => makeFlatNodeForTree(`node-${i}`, i));
+    const result = BeadTree({
+      nodes,
+      selectedIndex: 5,
+      scrollOffset: 0,
+      viewportHeight: 10,
+      width: 80,
+    });
+
+    // Extract text to check for scroll indicator
+    const texts: string[] = [];
+    function extractText(node: unknown): void {
+      if (typeof node === 'string' || typeof node === 'number') texts.push(String(node));
+      if (typeof node === 'object' && node !== null) {
+        const elem = node as { props?: { children?: unknown } };
+        if (elem.props?.children) {
+          if (Array.isArray(elem.props.children)) {
+            elem.props.children.forEach(extractText);
+          } else {
+            extractText(elem.props.children);
+          }
+        }
+      }
+    }
+    extractText(result);
+    const text = texts.join('');
+    expect(text).toContain('↓');
+    expect(text).toContain('more');
+    // Should show how many items are below
+    expect(text).toMatch(/↓.*\d+.*more/);
+  });
+
+  it('handles viewportHeight larger than total nodes', () => {
+    const nodes = [makeFlatNodeForTree('a', 0)];
+    const result = BeadTree({
       nodes,
       selectedIndex: 0,
       scrollOffset: 0,
       viewportHeight: 100,
       width: 80,
-    })).not.toThrow();
+    });
+    expect(result).toBeDefined();
   });
 
   it('handles narrow width', () => {
-    const nodes = [makeFlatNode('a', 0)];
-    expect(() => BeadTree({
+    const nodes = [makeFlatNodeForTree('a', 0)];
+    const result = BeadTree({
       nodes,
       selectedIndex: 0,
       scrollOffset: 0,
       viewportHeight: 10,
       width: 20,
+    });
+    expect(result).toBeDefined();
+  });
+
+  it('handles undefined nodes gracefully', () => {
+    expect(() => BeadTree({
+      nodes: undefined as unknown as FlattenedNode[],
+      selectedIndex: 0,
+      scrollOffset: 0,
+      viewportHeight: 10,
+      width: 80,
     })).not.toThrow();
   });
 });
