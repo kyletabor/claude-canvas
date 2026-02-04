@@ -11,6 +11,7 @@ import type {
   DocumentConfig,
   DocumentSelection,
 } from "../scenarios/types";
+import type { FlightConfig, FlightResult } from "../canvases/flight/types";
 
 export interface CanvasResult<T = unknown> {
   success: boolean;
@@ -210,6 +211,27 @@ export async function editDocument(
   return spawnCanvasWithIPC<DocumentConfig, DocumentSelection>(
     "document",
     "edit",
+    config,
+    options
+  );
+}
+
+// ============================================
+// Flight Canvas API
+// ============================================
+
+/**
+ * Spawn a flight booking canvas
+ * Shows flight options with interactive seat selection
+ * Returns the selected flight and seat when user confirms
+ */
+export async function bookFlight(
+  config: FlightConfig,
+  options?: SpawnOptions
+): Promise<CanvasResult<FlightResult>> {
+  return spawnCanvasWithIPC<FlightConfig, FlightResult>(
+    "flight",
+    "booking",
     config,
     options
   );
