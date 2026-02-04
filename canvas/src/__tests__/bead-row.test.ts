@@ -1,27 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import type { BeadNode, FlattenedNode } from "../canvases/beads/types";
-
-const makeNode = (overrides: Partial<BeadNode> = {}): BeadNode => ({
-  id: "test-1",
-  title: "Test Bead",
-  status: "pending",
-  priority: 1,
-  ...overrides,
-});
-
-const makeFlatNode = (
-  nodeOverrides: Partial<BeadNode> = {},
-  flatOverrides: Partial<Omit<FlattenedNode, "node">> = {}
-): FlattenedNode => ({
-  node: makeNode(nodeOverrides),
-  depth: 0,
-  isLast: true,
-  isExpanded: false,
-  hasChildren: false,
-  parentPath: [],
-  flatIndex: 0,
-  ...flatOverrides,
-});
+import type { BeadNode } from "../canvases/beads/types";
+import { makeNode, makeFlatNode } from "./beads-test-utils";
 
 describe("BeadRow Component", () => {
   describe("module exports", () => {
@@ -217,7 +196,7 @@ describe("BeadRow Component", () => {
 
     it("should not throw with undefined blockedBy", async () => {
       const { BeadRow } = await import("../canvases/beads/components/bead-row");
-      const node = makeNode({ status: "blocked" });
+      const node = makeNode('test', { status: "blocked" });
       delete (node as any).blockedBy;
       expect(() => {
         BeadRow({

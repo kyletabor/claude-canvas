@@ -7,27 +7,7 @@ import { describe, expect, it } from 'bun:test';
 import type { BeadNode, BeadsConfig, FlattenedNode } from '../canvases/beads/types';
 import { STATUS_ICONS, UNKNOWN_STATUS_ICON, TREE_CHARS, BEAD_COLORS } from '../canvases/beads/types';
 import { flattenTree, getTreePrefix, BeadTree } from '../canvases/beads/components/bead-tree';
-
-// Helper to create test nodes
-const makeNode = (id: string, overrides?: Partial<BeadNode>): BeadNode => ({
-  id,
-  title: `Node ${id}`,
-  status: 'ready',
-  priority: 1,
-  ...overrides,
-});
-
-// Helper to create flattened nodes for prefix testing
-const makeFlatNode = (overrides?: Partial<FlattenedNode>): FlattenedNode => ({
-  node: makeNode('test'),
-  depth: 0,
-  isLast: false,
-  hasChildren: false,
-  isExpanded: false,
-  parentPath: [],
-  flatIndex: 0,
-  ...overrides,
-});
+import { makeNode, makeFlatNode } from './beads-test-utils';
 
 // ============================================================================
 // 1. Import Tests
@@ -235,42 +215,42 @@ describe('flattenTree', () => {
 // ============================================================================
 describe('getTreePrefix', () => {
   it('returns empty string for root nodes', () => {
-    const flat = makeFlatNode({ depth: 0, isLast: false, hasChildren: false, parentPath: [] });
+    const flat = makeFlatNode({}, { depth: 0, isLast: false, hasChildren: false, parentPath: [] });
     expect(getTreePrefix(flat)).toBe('');
   });
 
   it('uses └ for last child', () => {
-    const flat = makeFlatNode({ depth: 1, isLast: true, hasChildren: false, parentPath: [] });
+    const flat = makeFlatNode({}, { depth: 1, isLast: true, hasChildren: false, parentPath: [] });
     expect(getTreePrefix(flat)).toContain('└');
   });
 
   it('uses ├ for non-last child', () => {
-    const flat = makeFlatNode({ depth: 1, isLast: false, hasChildren: false, parentPath: [] });
+    const flat = makeFlatNode({}, { depth: 1, isLast: false, hasChildren: false, parentPath: [] });
     expect(getTreePrefix(flat)).toContain('├');
   });
 
   it('adds expand indicator for nodes with children (collapsed)', () => {
-    const flat = makeFlatNode({ depth: 1, isLast: false, hasChildren: true, isExpanded: false, parentPath: [] });
+    const flat = makeFlatNode({}, { depth: 1, isLast: false, hasChildren: true, isExpanded: false, parentPath: [] });
     expect(getTreePrefix(flat)).toContain('▸');
   });
 
   it('adds expand indicator for nodes with children (expanded)', () => {
-    const flat = makeFlatNode({ depth: 1, isLast: false, hasChildren: true, isExpanded: true, parentPath: [] });
+    const flat = makeFlatNode({}, { depth: 1, isLast: false, hasChildren: true, isExpanded: true, parentPath: [] });
     expect(getTreePrefix(flat)).toContain('▼');
   });
 
   it('adds collapse indicator for root with children (collapsed)', () => {
-    const flat = makeFlatNode({ depth: 0, hasChildren: true, isExpanded: false });
+    const flat = makeFlatNode({}, { depth: 0, hasChildren: true, isExpanded: false });
     expect(getTreePrefix(flat)).toBe(TREE_CHARS.COLLAPSED + ' ');
   });
 
   it('adds expand indicator for root with children (expanded)', () => {
-    const flat = makeFlatNode({ depth: 0, hasChildren: true, isExpanded: true });
+    const flat = makeFlatNode({}, { depth: 0, hasChildren: true, isExpanded: true });
     expect(getTreePrefix(flat)).toBe(TREE_CHARS.EXPANDED + ' ');
   });
 
   it('includes vertical pipe for non-last ancestor', () => {
-    const flat = makeFlatNode({
+    const flat = makeFlatNode({}, {
       depth: 2,
       isLast: true,
       parentPath: [false], // ancestor was not last
@@ -280,7 +260,7 @@ describe('getTreePrefix', () => {
   });
 
   it('includes space (no pipe) for last ancestor', () => {
-    const flat = makeFlatNode({
+    const flat = makeFlatNode({}, {
       depth: 2,
       isLast: true,
       parentPath: [true], // ancestor was last
@@ -346,7 +326,7 @@ describe('edge cases', () => {
   });
 
   it('BeadTree handles scroll past end', () => {
-    const nodes = [makeFlatNode({ node: makeNode('a'), flatIndex: 0 })];
+    const nodes = [makeFlatNode({ id: 'a' }, { flatIndex: 0 })];
     expect(() =>
       BeadTree({
         nodes,
@@ -359,7 +339,7 @@ describe('edge cases', () => {
   });
 
   it('BeadTree handles negative dimensions gracefully', () => {
-    const nodes = [makeFlatNode({ node: makeNode('a'), flatIndex: 0 })];
+    const nodes = [makeFlatNode({ id: 'a' }, { flatIndex: 0 })];
     expect(() =>
       BeadTree({
         nodes,
