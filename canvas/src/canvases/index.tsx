@@ -5,6 +5,8 @@ import { Document } from "./document";
 import type { DocumentConfig } from "./document/types";
 import { FlightCanvas } from "./flight";
 import type { FlightConfig } from "./flight/types";
+import { BeadsCanvas } from "./beads";
+import type { BeadsConfig } from "./beads/types";
 
 // Clear screen and hide cursor
 function clearScreen() {
@@ -54,6 +56,12 @@ export async function renderCanvas(
       return renderFlight(
         id,
         config as FlightConfig | undefined,
+        options
+      );
+    case "beads":
+      return renderBeads(
+        id,
+        config as BeadsConfig | undefined,
         options
       );
     default:
@@ -111,6 +119,25 @@ async function renderFlight(
       config={config}
       socketPath={options?.socketPath}
       scenario={options?.scenario || "booking"}
+    />,
+    {
+      exitOnCtrlC: true,
+    }
+  );
+  await waitUntilExit();
+}
+
+async function renderBeads(
+  id: string,
+  config?: BeadsConfig,
+  options?: RenderOptions
+): Promise<void> {
+  const { waitUntilExit } = render(
+    <BeadsCanvas
+      id={id}
+      config={config}
+      socketPath={options?.socketPath}
+      scenario={options?.scenario || "display"}
     />,
     {
       exitOnCtrlC: true,
