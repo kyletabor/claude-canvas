@@ -18,6 +18,9 @@ export interface StatusBarProps {
   connectionError?: string | null;
 }
 
+/**
+ * Renders the status bar with keyboard shortcuts and connection status.
+ */
 export function StatusBar({ width, focusMode, connectionError }: StatusBarProps) {
   // Separator line
   const separator = "━".repeat(Math.max(0, width));
@@ -25,10 +28,10 @@ export function StatusBar({ width, focusMode, connectionError }: StatusBarProps)
   // Build help text based on focus mode
   let helpText: string;
   if (focusMode === "tree") {
-    helpText = "←→ epics  ↑↓ navigate  ▸/▼ expand  o open  ? help  q quit";
+    helpText = "←→ epics  ↑↓ navigate  ▸/▼ expand  o open  q quit";
   } else {
     // detail mode
-    helpText = "←→ epics  ↑↓ scroll  Tab tree  ? help  q quit";
+    helpText = "←→ epics  ↑↓ scroll  Tab tree  q quit";
   }
 
   return (
