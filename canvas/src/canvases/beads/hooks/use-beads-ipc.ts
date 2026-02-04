@@ -26,6 +26,8 @@ export interface UseBeadsIPCOptions {
 export interface BeadsIPCHandle {
   /** Whether connected to controller */
   isConnected: boolean;
+  /** Connection error message if connection failed */
+  connectionError: string | null;
   /** Send bead selection change */
   sendBeadSelected: (beadId: string) => void;
   /** Request bead details from controller */
@@ -44,6 +46,7 @@ export function useBeadsIPC(options: UseBeadsIPCOptions): BeadsIPCHandle {
   const { socketPath, scenario, onClose, onUpdate, onShowDetails } = options;
   const { exit } = useApp();
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const clientRef = useRef<IPCClient | null>(null);
 
   // Keep callback refs to avoid effect re-runs
@@ -99,23 +102,33 @@ export function useBeadsIPC(options: UseBeadsIPCOptions): BeadsIPCHandle {
           onDisconnect: () => {
             if (mounted) {
               setIsConnected(false);
+              setConnectionError("IPC connection lost");
             }
           },
           onError: (err) => {
             console.error("Beads IPC error:", err);
+            if (mounted) {
+              const errorMessage = err instanceof Error ? err.message : String(err);
+              setConnectionError(`IPC error: ${errorMessage}`);
+            }
           },
         });
 
         if (mounted) {
           clientRef.current = client;
           setIsConnected(true);
+          setConnectionError(null);
           // Send ready message automatically
           client.send({ type: "ready", scenario });
         } else {
           client.close();
         }
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
         console.error("Failed to connect to controller:", err);
+        if (mounted) {
+          setConnectionError(`IPC connection failed: ${errorMessage}`);
+        }
       }
     };
 
@@ -154,6 +167,7 @@ export function useBeadsIPC(options: UseBeadsIPCOptions): BeadsIPCHandle {
 
   return {
     isConnected,
+    connectionError,
     sendBeadSelected,
     sendRequestDetails,
     sendRequestBlockers,
