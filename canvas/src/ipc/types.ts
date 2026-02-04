@@ -47,6 +47,14 @@ export type CanvasMessage =
   | { type: "epicNav"; direction: "prev" | "next" };
 
 // Socket path convention
+// Regex for valid socket ID: alphanumeric, hyphens, underscores only
+const VALID_SOCKET_ID = /^[a-zA-Z0-9_-]+$/;
+
 export function getSocketPath(id: string): string {
+  if (!id || !VALID_SOCKET_ID.test(id)) {
+    throw new Error(
+      `Invalid socket ID: "${id}". Must contain only alphanumeric characters, hyphens, and underscores.`
+    );
+  }
   return `/tmp/canvas-${id}.sock`;
 }
