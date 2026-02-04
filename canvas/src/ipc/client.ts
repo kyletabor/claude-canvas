@@ -3,6 +3,7 @@
 
 import type { ControllerMessage, CanvasMessage } from "./types";
 import type { Socket } from "bun";
+import { safeParseControllerMessage } from "./schemas";
 
 export interface IPCClientOptions {
   socketPath: string;
@@ -42,10 +43,17 @@ export async function connectToController(
         for (const line of lines) {
           if (line.trim()) {
             try {
-              const msg = JSON.parse(line) as ControllerMessage;
-              onMessage(msg);
+              const parsed = JSON.parse(line);
+              const msg = safeParseControllerMessage(parsed);
+              if (msg) {
+                onMessage(msg as ControllerMessage);
+              } else {
+                onError?.(
+                  new Error(`Invalid message structure: ${line.slice(0, 100)}`)
+                );
+              }
             } catch (e) {
-              onError?.(new Error(`Failed to parse message: ${line}`));
+              onError?.(new Error(`Failed to parse message: ${line.slice(0, 100)}`));
             }
           }
         }
