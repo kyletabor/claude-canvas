@@ -3,7 +3,7 @@
  * Provides runtime validation for messages received from the controller.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Schema for IPC comment data structure.
