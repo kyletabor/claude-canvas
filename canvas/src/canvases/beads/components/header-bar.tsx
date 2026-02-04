@@ -18,6 +18,9 @@ export interface HeaderBarProps {
   width: number;
 }
 
+/**
+ * Renders the header bar with epic navigation and current position indicator.
+ */
 export function HeaderBar({ title, epicIndex, totalEpics, width }: HeaderBarProps) {
   const leftText = `← epics (${totalEpics})`;
   const rightText = title ? `${title}  ${epicIndex}/${totalEpics}` : `${epicIndex}/${totalEpics}`;

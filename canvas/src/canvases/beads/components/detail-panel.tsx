@@ -28,7 +28,7 @@ export function DetailPanel({
   width,
   height,
   isActive = true,
-}: DetailPanelProps): JSX.Element {
+}: DetailPanelProps): React.JSX.Element {
   // Handle keyboard input - Escape closes the panel
   useInput(
     (_input, key) => {
@@ -70,7 +70,7 @@ export function DetailPanel({
           <Text color={BEAD_COLORS.dim}>Status: </Text>
           <Text>{statusIcon} </Text>
           <Text color={BEAD_COLORS.normal}>
-            {node.status.charAt(0).toUpperCase() + node.status.slice(1).replace("_", " ")}
+            {node.status.charAt(0).toUpperCase() + node.status.slice(1).replaceAll("_", " ")}
           </Text>
         </Text>
         <Text>
