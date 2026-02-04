@@ -181,7 +181,7 @@ async function reuseExistingPane(paneId: string, command: string): Promise<boole
         const proc = spawn("tmux", args);
         proc.on("close", (code) => resolve(code === 0));
         proc.on("error", () => resolve(false));
-      }, 150);
+      }, 500);
     });
     killProc.on("error", () => resolve(false));
   });

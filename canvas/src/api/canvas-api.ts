@@ -41,16 +41,19 @@ export async function spawnCanvasWithIPC<TConfig, TResult>(
   return new Promise((resolve) => {
     let resolved = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let server: Awaited<ReturnType<typeof createIPCServer>> | null = null;
 
     const cleanup = () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
       }
-      server.close();
+      server?.close();
     };
 
-    const server = createIPCServer({
+    // Use IIFE to properly await async server creation
+    (async () => {
+      server = await createIPCServer({
       socketPath,
       onClientConnect() {
         // Canvas connected, waiting for ready message
@@ -115,35 +118,36 @@ export async function spawnCanvasWithIPC<TConfig, TResult>(
           });
         }
       },
-    });
+      });
 
-    // Set timeout
-    timeoutId = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        server.send({ type: "close" });
-        cleanup();
-        resolve({
-          success: false,
-          error: "Timeout waiting for user selection",
-        });
-      }
-    }, timeout);
+      // Set timeout
+      timeoutId = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          server?.broadcast({ type: "close" });
+          cleanup();
+          resolve({
+            success: false,
+            error: "Timeout waiting for user selection",
+          });
+        }
+      }, timeout);
 
-    // Spawn the canvas
-    spawnCanvas(kind, id, JSON.stringify(config), {
-      socketPath,
-      scenario,
-    }).catch((err) => {
-      if (!resolved) {
-        resolved = true;
-        cleanup();
-        resolve({
-          success: false,
-          error: `Failed to spawn canvas: ${err.message}`,
-        });
-      }
-    });
+      // Spawn the canvas
+      spawnCanvas(kind, id, JSON.stringify(config), {
+        socketPath,
+        scenario,
+      }).catch((err) => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve({
+            success: false,
+            error: `Failed to spawn canvas: ${err.message}`,
+          });
+        }
+      });
+    })();
   });
 }
 
