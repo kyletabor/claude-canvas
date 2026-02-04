@@ -23,7 +23,7 @@ export function HeaderBar({ title, epicIndex, totalEpics, width }: HeaderBarProp
   const rightText = title ? `${title}  ${epicIndex}/${totalEpics}` : `${epicIndex}/${totalEpics}`;
 
   // Separator line
-  const separator = "━".repeat(width);
+  const separator = "━".repeat(Math.max(0, width));
 
   return (
     <Box flexDirection="column">

@@ -188,7 +188,7 @@ export function BeadTree({
   // Calculate height for content (accounting for scroll indicators)
   const hasTopIndicator = itemsAbove > 0;
   const hasBottomIndicator = itemsBelow > 0;
-  const contentHeight = viewportHeight - (hasTopIndicator ? 1 : 0) - (hasBottomIndicator ? 1 : 0);
+  const contentHeight = Math.max(0, viewportHeight - (hasTopIndicator ? 1 : 0) - (hasBottomIndicator ? 1 : 0));
 
   return (
     <Box flexDirection="column" height={viewportHeight}>
