@@ -195,7 +195,7 @@ export function BeadsCanvas({
       </Box>
 
       {/* Footer */}
-      <StatusBar width={dimensions.width} focusMode={focusMode} />
+      <StatusBar width={dimensions.width} focusMode={focusMode} connectionError={ipc.connectionError} />
     </Box>
   );
 }

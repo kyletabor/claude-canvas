@@ -14,9 +14,11 @@ export interface StatusBarProps {
   width: number;
   /** Current focus mode */
   focusMode: FocusMode;
+  /** Connection error message to display */
+  connectionError?: string | null;
 }
 
-export function StatusBar({ width, focusMode }: StatusBarProps) {
+export function StatusBar({ width, focusMode, connectionError }: StatusBarProps) {
   // Separator line
   const separator = "━".repeat(Math.max(0, width));
 
@@ -32,7 +34,11 @@ export function StatusBar({ width, focusMode }: StatusBarProps) {
   return (
     <Box flexDirection="column">
       <Text color={BEAD_COLORS.header}>{separator}</Text>
-      <Text color={BEAD_COLORS.dim}>{helpText}</Text>
+      {connectionError ? (
+        <Text color="red" bold>⚠ {connectionError}</Text>
+      ) : (
+        <Text color={BEAD_COLORS.dim}>{helpText}</Text>
+      )}
     </Box>
   );
 }
