@@ -9,6 +9,7 @@ import type { BeadsConfig } from './types';
 import { HeaderBar } from './components/header-bar';
 import { StatusBar, type FocusMode } from './components/status-bar';
 import { BeadTree, flattenTree } from './components/bead-tree';
+import { DetailPanel } from './components/detail-panel';
 import { useTreeNavigation, useBeadsIPC } from './hooks';
 
 export interface BeadsCanvasProps {
@@ -124,6 +125,19 @@ export function BeadsCanvas({
     exit();
   }, [exit]);
 
+  // Close detail panel handler
+  const handleCloseDetail = useCallback(() => {
+    setFocusMode('tree');
+    setDetailBeadId(null);
+  }, []);
+
+  // Find the node for the detail panel
+  const detailNode = useMemo(() => {
+    if (!detailBeadId) return null;
+    const flat = flattenedNodes.find((f) => f.node.id === detailBeadId);
+    return flat?.node ?? null;
+  }, [detailBeadId, flattenedNodes]);
+
   // Wire up navigation hook
   const { selectedIndex, scrollOffset } = useTreeNavigation({
     flattenedNodes,
@@ -168,17 +182,15 @@ export function BeadsCanvas({
           width={focusMode === 'detail' ? Math.floor(dimensions.width * 0.5) : dimensions.width}
         />
 
-        {/* Detail panel (future implementation) */}
-        {focusMode === 'detail' && (
-          <Box
-            flexDirection="column"
+        {/* Detail panel */}
+        {focusMode === 'detail' && detailNode && (
+          <DetailPanel
+            node={detailNode}
+            onClose={handleCloseDetail}
             width={Math.floor(dimensions.width * 0.5)}
-            borderStyle="single"
-            borderColor="gray"
-            paddingX={1}
-          >
-            {/* DetailPanel will be implemented in a future leg */}
-          </Box>
+            height={contentHeight}
+            isActive={focusMode === 'detail'}
+          />
         )}
       </Box>
 
