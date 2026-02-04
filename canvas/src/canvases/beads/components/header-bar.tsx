@@ -22,10 +22,6 @@ export function HeaderBar({ title, epicIndex, totalEpics, width }: HeaderBarProp
   const leftText = `← epics (${totalEpics})`;
   const rightText = title ? `${title}  ${epicIndex}/${totalEpics}` : `${epicIndex}/${totalEpics}`;
 
-  // Calculate padding to right-align the right text
-  const contentWidth = leftText.length + rightText.length;
-  const padding = Math.max(0, width - contentWidth);
-
   // Separator line
   const separator = "━".repeat(width);
 
