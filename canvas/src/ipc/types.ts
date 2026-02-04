@@ -23,7 +23,9 @@ export type ControllerMessage =
   | { type: "ping" }
   | { type: "getSelection" }
   | { type: "getContent" }
-  | { type: "commentResponse"; data: { commentId: string; response: string } };
+  | { type: "commentResponse"; data: { commentId: string; response: string } }
+  // Beads canvas messages
+  | { type: "showDetails"; beadId: string };
 
 // Messages sent from Canvas to Controller (Claude)
 export type CanvasMessage =
@@ -36,7 +38,13 @@ export type CanvasMessage =
   | { type: "content"; data: { content: string; cursorPosition: number } }
   | { type: "commentCreated"; data: IPCComment }
   | { type: "commentTrigger"; data: { comment: IPCComment; documentContext: string } }
-  | { type: "exportComments"; data: { format: 'markdown' | 'json'; comments: IPCComment[] } };
+  | { type: "exportComments"; data: { format: 'markdown' | 'json'; comments: IPCComment[] } }
+  // Beads canvas messages
+  | { type: "beadSelected"; beadId: string }
+  | { type: "requestDetails"; beadId: string }
+  | { type: "requestBlockers"; beadId: string }
+  | { type: "beadRefresh" }
+  | { type: "epicNav"; direction: "prev" | "next" };
 
 // Socket path convention
 export function getSocketPath(id: string): string {

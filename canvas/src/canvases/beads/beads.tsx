@@ -9,7 +9,7 @@ import type { BeadsConfig } from './types';
 import { HeaderBar } from './components/header-bar';
 import { StatusBar, type FocusMode } from './components/status-bar';
 import { BeadTree, flattenTree } from './components/bead-tree';
-import { useTreeNavigation } from './hooks';
+import { useTreeNavigation, useBeadsIPC } from './hooks';
 
 export interface BeadsCanvasProps {
   /** Unique canvas instance ID */
@@ -51,6 +51,18 @@ export function BeadsCanvas({
   const [focusMode, setFocusMode] = useState<FocusMode>('tree');
   const [detailBeadId, setDetailBeadId] = useState<string | null>(null);
 
+  // IPC connection for controller communication
+  const ipc = useBeadsIPC({
+    socketPath,
+    scenario: scenario || 'display',
+    onClose: () => exit(),
+    onUpdate: (newConfig) => setConfig(newConfig),
+    onShowDetails: (beadId) => {
+      setDetailBeadId(beadId);
+      setFocusMode('detail');
+    },
+  });
+
   // Listen for terminal resize
   useEffect(() => {
     const updateDimensions = () => {
@@ -90,21 +102,22 @@ export function BeadsCanvas({
     });
   }, []);
 
-  // Details handler
+  // Details handler - request details via IPC
   const handleDetails = useCallback((beadId: string) => {
+    ipc.sendRequestDetails(beadId);
     setDetailBeadId(beadId);
     setFocusMode('detail');
-  }, []);
+  }, [ipc]);
 
-  // Refresh handler (placeholder for IPC integration)
+  // Refresh handler - request fresh data via IPC
   const handleRefresh = useCallback(() => {
-    // TODO: Integrate with IPC to request fresh data
-  }, []);
+    ipc.sendBeadRefresh();
+  }, [ipc]);
 
-  // Epic navigation handler (placeholder for multi-epic support)
+  // Epic navigation handler - request epic switch via IPC
   const handleEpicNav = useCallback((direction: 'prev' | 'next') => {
-    // TODO: Implement epic switching when multiple epics are supported
-  }, []);
+    ipc.sendEpicNav(direction);
+  }, [ipc]);
 
   // Quit handler
   const handleQuit = useCallback(() => {
@@ -121,6 +134,14 @@ export function BeadsCanvas({
     onEpicNav: handleEpicNav,
     onQuit: handleQuit,
   });
+
+  // Send bead selection changes via IPC
+  useEffect(() => {
+    const selectedFlat = flattenedNodes[selectedIndex];
+    if (selectedFlat && ipc.isConnected) {
+      ipc.sendBeadSelected(selectedFlat.node.id);
+    }
+  }, [selectedIndex, flattenedNodes, ipc]);
 
   return (
     <Box
