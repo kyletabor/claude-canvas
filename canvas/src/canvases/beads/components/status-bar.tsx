@@ -18,7 +18,7 @@ export interface StatusBarProps {
 
 export function StatusBar({ width, focusMode }: StatusBarProps) {
   // Separator line
-  const separator = "━".repeat(width);
+  const separator = "━".repeat(Math.max(0, width));
 
   // Build help text based on focus mode
   let helpText: string;
