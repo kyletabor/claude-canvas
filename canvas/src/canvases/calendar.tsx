@@ -22,6 +22,9 @@ export interface CalendarConfig {
     color?: string;
     allDay?: boolean;
   }>;
+  // Display hours range (defaults: 6am-10pm)
+  startHour?: number;
+  endHour?: number;
   // Meeting picker config (when scenario is "meeting-picker")
   calendars?: MeetingPickerConfig["calendars"];
   slotGranularity?: MeetingPickerConfig["slotGranularity"];
@@ -45,9 +48,6 @@ interface Props {
   socketPath?: string;
   scenario?: string;
 }
-
-const START_HOUR = 6;
-const END_HOUR = 22;
 
 // Notion-like color palette with text colors for contrast
 const INK_COLORS = ["yellow", "green", "blue", "magenta", "red", "cyan"];
@@ -168,9 +168,11 @@ interface DayColumnProps {
   columnWidth: number;
   slotHeights: number[];
   currentTime: Date;
+  startHour: number;
+  endHour: number;
 }
 
-function DayColumn({ date, events, isToday, columnWidth, slotHeights, currentTime }: DayColumnProps) {
+function DayColumn({ date, events, isToday, columnWidth, slotHeights, currentTime, startHour, endHour }: DayColumnProps) {
   // Filter to only timed events (not all-day) for this day
   const dayEvents = events.filter((e) => isSameDay(e.startTime, date) && !isAllDayEvent(e));
 
@@ -178,14 +180,14 @@ function DayColumn({ date, events, isToday, columnWidth, slotHeights, currentTim
   const currentHour = currentTime.getHours();
   const currentMinute = currentTime.getMinutes();
   const currentTimeDecimal = currentHour + currentMinute / 60;
-  const showNowLine = currentHour >= START_HOUR && currentHour < END_HOUR;
+  const showNowLine = currentHour >= startHour && currentHour < endHour;
 
   // Build half-hour slots (2 rows per hour)
   const slots: JSX.Element[] = [];
   let slotIndex = 0;
   let cumulativeHeight = 0;
 
-  for (let hour = START_HOUR; hour < END_HOUR; hour++) {
+  for (let hour = startHour; hour < endHour; hour++) {
     for (let half = 0; half < 2; half++) {
       const slotMinute = half * 30;
       const slotTime = hour + slotMinute / 60;
@@ -346,6 +348,10 @@ function AllDayEventsRow({ weekDays, events, columnWidth, timeColumnWidth }: All
 }
 
 export function Calendar({ id, config, socketPath, scenario = "display" }: Props) {
+  // Extract display hours from config with defaults
+  const startHour = config?.startHour ?? 6;
+  const endHour = config?.endHour ?? 22;
+
   // Route to meeting picker if that scenario is requested
   if (scenario === "meeting-picker" && config?.calendars) {
     const pickerConfig: MeetingPickerConfig = {
@@ -354,8 +360,8 @@ export function Calendar({ id, config, socketPath, scenario = "display" }: Props
       minDuration: config.minDuration || 30,
       maxDuration: config.maxDuration || 120,
       title: config.title,
-      startHour: 6,
-      endHour: 22,
+      startHour,
+      endHour,
     };
     return <MeetingPickerView id={id} config={pickerConfig} socketPath={socketPath} />;
   }
@@ -406,7 +412,7 @@ export function Calendar({ id, config, socketPath, scenario = "display" }: Props
   const headerHeight = 5; // Title (1) + marginBottom (1) + day name (1) + day number (1) + marginBottom (1)
   const footerHeight = 1; // Help bar
   const availableHeight = Math.max(1, termHeight - headerHeight - footerHeight);
-  const totalSlots = (END_HOUR - START_HOUR) * 2; // 2 slots per hour
+  const totalSlots = (endHour - startHour) * 2; // 2 slots per hour
   const baseSlotHeight = Math.max(1, Math.floor(availableHeight / totalSlots));
   const extraRows = availableHeight - (baseSlotHeight * totalSlots);
   // Create array of slot heights - first `extraRows` slots get +1 height
@@ -449,11 +455,11 @@ export function Calendar({ id, config, socketPath, scenario = "display" }: Props
   const currentHour = currentTime.getHours();
   const currentMinute = currentTime.getMinutes();
   const currentTimeDecimal = currentHour + currentMinute / 60;
-  const showNowIndicator = currentHour >= START_HOUR && currentHour < END_HOUR;
+  const showNowIndicator = currentHour >= startHour && currentHour < endHour;
 
   const timeSlots: JSX.Element[] = [];
   let timeSlotIndex = 0;
-  for (let hour = START_HOUR; hour < END_HOUR; hour++) {
+  for (let hour = startHour; hour < endHour; hour++) {
     // Hour label on first half
     const slotTime = hour;
     const slotEndTime = hour + 0.5;
@@ -573,6 +579,8 @@ export function Calendar({ id, config, socketPath, scenario = "display" }: Props
             columnWidth={columnWidth}
             slotHeights={slotHeights}
             currentTime={currentTime}
+            startHour={startHour}
+            endHour={endHour}
           />
         ))}
       </Box>
